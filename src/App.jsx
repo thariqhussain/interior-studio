@@ -20,7 +20,7 @@ export default function App() {
       {/* Hero overlaps the preloader (negative margin = preloader height) so it can
           be revealed inside the expanding circular hole. */}
       <Preloader />
-      <div style={{ marginTop: '-220svh' }}>
+      <div style={{ marginTop: '-280svh' }}>
         <Hero />
       </div>
       <Manifesto />

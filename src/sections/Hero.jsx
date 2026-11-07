@@ -23,7 +23,7 @@ ScrollTrigger.config({ ignoreMobileResize: true })
 const FRAMES = 145        // frames in /hero-frames/{lg,sm}/f0001.webp …
 const SCROLL_SCREENS = 3  // how many screens of scrolling play the whole sequence
 const IRIS_START = 0.6    // screens of scroll (the preloader's text dispersal) before the wipe starts
-const IRIS_SCREENS = 0.6  // screens of scroll the wipe takes to finish
+const IRIS_SCREENS = 1.2  // screens of scroll the wipe takes to finish (was 0.6 – now half the speed; keep Preloader.jsx + App.jsx in sync)
 const SMOOTHING = 0.085   // 0–1, lower = floatier catch-up to the scroll position
 const EDGE_EASE = 0.65    // 0 = linear playback, 1 = full smoothstep (slow start & finish)
 const LOAD_THREADS = 6
@@ -64,10 +64,14 @@ const WIPE_LEAN = 0.28  // how far the wipe edge leans, as a fraction of the lar
 
 /* clip-path: a diagonal edge sweeping left → right, revealing the video behind it.
    The lean is sized from the screen so the angle stays pleasant on phones and tablets too. */
-function wipePath(t, w, h) {
+function wipeGeom(t, w, h) {
   const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2 // easeInOutCubic
   const skew = Math.min(70, ((WIPE_LEAN * Math.max(w, h)) / w) * 100) // % of the width
   const x = -skew + e * (100 + 2 * skew) // edge's centre line travels fully off-screen to off-screen
+  return { skew, x, e }
+}
+function wipePath(t, w, h) {
+  const { skew, x } = wipeGeom(t, w, h)
   return `polygon(0% 0%, ${(x + skew).toFixed(3)}% 0%, ${(x - skew).toFixed(3)}% 100%, 0% 100%)`
 }
 
@@ -78,9 +82,10 @@ const CSS = `
   width: 100%;
   height: 100svh;
   overflow: hidden;
-  background: #0d0d0e;
   color: #f4f4f2;
 }
+/* the wipe's clip-path lives on this inner layer */
+.hv-clip { position: absolute; inset: 0; overflow: hidden; background: #0d0d0e; }
 .hv-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .hv-title {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
@@ -160,6 +165,7 @@ export default function Hero() {
     /* ---- chapter titles, shown by frame number ---- */
     const chapEls = [...stage.querySelectorAll('[data-chap]')]
     const fillEl = stage.querySelector('[data-fill]')
+    const clipEl = stage.querySelector('[data-clip]')
 
     const updateCaptions = (pos) => {
       chapEls.forEach((el, i) => {
@@ -243,7 +249,9 @@ export default function Hero() {
       const vh = stage.offsetHeight // stable (svh) – the same unit the preloader uses
       const iris = clamp01((scroll / vh - IRIS_START) / IRIS_SCREENS)
       // diagonal wipe: a slanted edge sweeps across and uncovers the video
-      stage.style.clipPath = wipePath(iris, stage.offsetWidth, stage.offsetHeight)
+      const W = stage.offsetWidth
+      const H = stage.offsetHeight
+      clipEl.style.clipPath = wipePath(iris, W, H)
       // the picture pushes forward while the wipe sweeps
       canvas.style.transform = `scale(${1.2 - 0.2 * iris})`
       // the building only starts moving once the wipe has finished
@@ -254,7 +262,7 @@ export default function Hero() {
     }
 
     if (!reduced) {
-      stage.style.clipPath = wipePath(0, stage.offsetWidth, stage.offsetHeight)
+      clipEl.style.clipPath = wipePath(0, stage.offsetWidth, stage.offsetHeight)
       st = ScrollTrigger.create({
         trigger: stage,
         pin: true,
@@ -281,10 +289,11 @@ export default function Hero() {
     <section
       id="hero"
       className="section"
-      style={{ display: 'block', position: 'relative', height: 'auto', minHeight: 0, padding: 0, overflow: 'visible' }}
+      style={{ display: 'block', position: 'relative', height: 'auto', minHeight: 0, padding: 0, overflow: 'visible', borderBottom: 'none' }}
     >
       <style>{CSS}</style>
       <div className="hv-stage" ref={stageRef}>
+        <div className="hv-clip" data-clip>
         <canvas ref={canvasRef} className="hv-canvas" aria-hidden="true" />
         <div className="hv-shade" />
         <h1 className="hv-title">Hero</h1>
@@ -305,6 +314,7 @@ export default function Hero() {
         <div ref={hintRef} className="hv-hint">
           <span>Scroll</span>
           <i />
+        </div>
         </div>
       </div>
     </section>

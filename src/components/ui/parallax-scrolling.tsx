@@ -34,8 +34,8 @@ const LAYERS = [
 ];
 
 const IMAGES: Record<string, string> = {
-  '1': '/assets/parallax-layers/layer-1.webp',
-  '2': '/assets/parallax-layers/layer-2.webp',
+  '1': '/assets/parallax-layers/layer-1-sky.webp', // night sky + moon only (the mountain was cut out of it)
+  '2': '/assets/parallax-layers/layer-5-building.webp', // the building, standing where the mountain used to be
   '4': '/assets/parallax-layers/layer-4.webp',
 };
 
