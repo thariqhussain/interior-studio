@@ -1,360 +1,413 @@
-import { Children, useCallback, useLayoutEffect, useRef } from 'react'
-import gsap from 'gsap'
-import { ScrollTrigger } from 'gsap/ScrollTrigger'
-
-gsap.registerPlugin(ScrollTrigger)
+import { useEffect, useRef } from 'react'
+import { motion, easeInOut, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from 'framer-motion'
+import { ChevronDown } from 'lucide-react'
+import { DISPLAY_FONT, ProjectArt, SERIF_FONT } from '@/lib/projects'
+import BACKGROUND_IMAGES from 'virtual:manifesto-images'
 
 /* =====================================================================
-   Manifesto section – ScrollExpand (single-file version)
-   Needs: gsap (already installed). Only used for window-scroll pinning.
-
-   ScrollExpand: a framed piece of media that opens up to fill the whole
-   stage as you scroll, then reveals its content.
-     • useWindowScroll  → the page scroll drives it (stage is pinned)
-     • default          → wheel / touch / arrow keys inside the frame drive
-                          it, and the page scrolls on once it is fully open
+   Manifesto section – ELENA VOSS hero → "shrink onto a wall of sites"
+   Phase 1  the hero sits in a small frame that expands to (almost) full screen.
+   Phase 2  the hero card shrinks to the middle of the screen while a blurred,
+            oversized wall of website mock-ups behind it settles into focus;
+            the page nav fades in on top.
+   Pinned with a sticky stage; progress comes from framer-motion's useScroll.
    ===================================================================== */
 
-const CSS = `
-.se-stage {
-  container-type: size;
-  position: relative;
-  width: 100%;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  isolation: isolate;
-  background: #0d0d0e;
-  color: #f4f4f2;
-}
-.se-stage--window { height: 100svh; min-height: 560px; }
-.se-stage--inline { height: 100%; min-height: 320px; overscroll-behavior: contain; }
-.se-stage:focus-visible { outline: 2px solid rgba(255,255,255,.6); outline-offset: -4px; }
-
-.se-frame {
-  position: relative;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  background: #1a1a1c;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 30px 80px -24px rgba(0, 0, 0, 0.85);
-  will-change: width, height;
-}
-.se-media { position: absolute; inset: 0; transform-origin: center; will-change: transform; }
-.se-media img,
-.se-media video { display: block; width: 100%; height: 100%; object-fit: cover; user-select: none; }
-.se-scrim { position: absolute; inset: 0; background: #08080a; pointer-events: none; }
-
-.se-title {
-  position: relative;
-  z-index: 2;
-  margin: 0;
-  padding: 0 6cqw;
-  text-align: center;
-  font-family: "Instrument Serif", "Playfair Display", "Iowan Old Style", Georgia, serif;
-  font-weight: 500;
-  font-size: clamp(1.8rem, 6.2cqw, 5.6rem);
-  line-height: 1;
-  letter-spacing: -0.03em;
-  color: #f7f7f5;
-  will-change: transform, opacity;
-}
-
-.se-content {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: clamp(10px, 2cqh, 22px);
-  padding: 0 clamp(20px, 10cqw, 160px);
-  text-align: center;
-  opacity: 0;
-  will-change: transform, opacity;
-}
-.se-content h1,
-.se-content h2,
-.se-content h3 {
-  margin: 0;
-  font-family: "Instrument Serif", "Playfair Display", "Iowan Old Style", Georgia, serif;
-  font-weight: 500;
-  font-size: clamp(1.7rem, 5cqw, 4.6rem);
-  line-height: 1.02;
-  letter-spacing: -0.03em;
-  color: #f7f7f5;
-}
-.se-content p {
-  margin: 0;
-  max-width: 34em;
-  font: 400 clamp(0.85rem, 1.4cqw, 1.25rem) / 1.7 system-ui, -apple-system, "Segoe UI", sans-serif;
-  color: #d2d2d2;
-}
-
-.se-hint {
-  position: absolute;
-  left: 50%;
-  bottom: clamp(16px, 4cqh, 44px);
-  transform: translateX(-50%);
-  z-index: 4;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  font: 500 clamp(0.72rem, 1.1cqw, 0.95rem) / 1 system-ui, -apple-system, "Segoe UI", sans-serif;
-  color: #8b8b8b;
-  white-space: nowrap;
-  pointer-events: none;
-}
-.se-hint i { display: block; width: 1px; height: 28px; background: linear-gradient(#8b8b8b, transparent); }
-`
-
-/* ---------- helpers ---------- */
-
-const FALLBACK_SRC = 'https://picsum.photos/seed/manifesto-hero/1920/1080'
+const WALL_OPACITY = 0.7
+const MODEL_SRC = '/male_model_cutout.png' // background removed from male_model.jpeg
 const lerp = (a, b, t) => a + (b - a) * t
-const clamp01 = (v) => Math.min(1, Math.max(0, v))
-const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
-const easeOut = (t) => 1 - Math.pow(1 - t, 3)
-const isVideo = (src = '') => /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i.test(src)
 
-/* ---------- ScrollExpand ---------- */
+/* ---------- website mock-ups (stand-ins for real project screenshots) ---------- */
 
-function ScrollExpand({
-  src,
-  alt = '',
-  title,
-  scrollHint,
-  children,
-  useWindowScroll = false,
-  startWidth = 38,      // % of the stage
-  startHeight = 52,     // % of the stage
-  startRadius = 24,     // px
-  endRadius = 0,        // px
-  mediaZoom = 1.25,     // media starts zoomed in and settles to 1
-  scrollDistance = 1,   // expansion length, in stage-heights of scrolling
-  holdDistance = 0.3,   // extra scrolling once open, while the content reveals
-  smoothing = 0.1,      // 0–1, lower = floatier
-  overlayScrim = 0.4,   // 0–1 darkness over the media at the start
-  enabled = true,
-}) {
-  const stageRef = useRef(null)
-  const frameRef = useRef(null)
-  const mediaRef = useRef(null)
-  const scrimRef = useRef(null)
-  const titleRef = useRef(null)
-  const contentRef = useRef(null)
-  const hintRef = useRef(null)
-  const targetRef = useRef(0)
-  const currentRef = useRef(0)
+const NAV = 'absolute inset-x-0 top-0 flex items-center justify-between'
 
-  const hasContent = Children.count(children) > 0
-  const total = Math.max(0.05, scrollDistance + holdDistance)
-  const expandEnd = scrollDistance / total
-
-  // latest props for the render loop (avoids stale closures, no re-renders per frame)
-  const P = useRef({})
-  P.current = { startWidth, startHeight, startRadius, endRadius, mediaZoom, overlayScrim, hasContent, expandEnd, holdDistance }
-
-  /* Apply one frame of the animation. r = overall progress 0..1 */
-  const render = useCallback((r) => {
-    const p = P.current
-    const e = easeInOut(clamp01(p.expandEnd > 0 ? r / p.expandEnd : 1))
-    const hs = p.holdDistance > 0
-      ? easeOut(clamp01((r - p.expandEnd) / (1 - p.expandEnd)))
-      : clamp01((e - 0.7) / 0.3)
-
-    const frame = frameRef.current
-    if (frame) {
-      frame.style.width = `${lerp(p.startWidth, 100, e)}%`
-      frame.style.height = `${lerp(p.startHeight, 100, e)}%`
-      frame.style.borderRadius = `${lerp(p.startRadius, p.endRadius, e)}px`
-      frame.style.borderWidth = e > 0.98 ? '0px' : '1px'
-    }
-    if (mediaRef.current) mediaRef.current.style.transform = `scale(${lerp(p.mediaZoom, 1, e)})`
-    if (scrimRef.current) {
-      scrimRef.current.style.opacity = clamp01(p.overlayScrim * (1 - 0.55 * e) + (p.hasContent ? 0.28 * hs : 0))
-    }
-    if (titleRef.current) {
-      titleRef.current.style.opacity = p.hasContent ? clamp01(1 - e * 1.8) : 1
-      titleRef.current.style.transform = `translateY(${-e * 40}px) scale(${1 + e * 0.04})`
-    }
-    if (contentRef.current) {
-      contentRef.current.style.opacity = hs
-      contentRef.current.style.transform = `translateY(${(1 - hs) * 28}px)`
-      contentRef.current.style.pointerEvents = hs > 0.9 ? 'auto' : 'none'
-    }
-    if (hintRef.current) hintRef.current.style.opacity = clamp01(1 - r * 12)
-  }, [])
-
-  useLayoutEffect(() => {
-    const stage = stageRef.current
-    if (!stage) return
-
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (!enabled || reduced) {
-      // no interaction: show the fully open state
-      targetRef.current = currentRef.current = 1
-      render(1)
-      return
-    }
-
-    /* smoothed progress loop */
-    let raf = 0
-    let last = 0
-    const tick = (t) => {
-      const dt = last ? Math.min(0.05, (t - last) / 1000) : 1 / 60
-      last = t
-      const k = 1 - Math.pow(1 - Math.min(1, Math.max(0.01, smoothing)), dt * 60)
-      const cur = currentRef.current
-      const tgt = targetRef.current
-      const next = Math.abs(tgt - cur) < 0.0004 ? tgt : cur + (tgt - cur) * k
-      currentRef.current = next
-      render(next)
-      if (next !== tgt) raf = requestAnimationFrame(tick)
-      else { raf = 0; last = 0 }
-    }
-    const setTarget = (v) => {
-      targetRef.current = clamp01(v)
-      if (!raf) { last = 0; raf = requestAnimationFrame(tick) }
-    }
-
-    const cleanups = []
-
-    if (useWindowScroll) {
-      /* page scroll drives it: pin the stage while the progress runs */
-      const st = ScrollTrigger.create({
-        trigger: stage,
-        pin: true,
-        pinSpacing: true,
-        anticipatePin: 1,
-        start: 'top top',
-        end: `+=${total * 100}%`,
-        onUpdate: (self) => setTarget(self.progress),
-      })
-      targetRef.current = currentRef.current = st.progress
-      render(st.progress)
-      cleanups.push(() => st.kill())
-    } else {
-      /* wheel / touch / keys inside the frame drive it; release at either end */
-      render(0)
-      const move = (dy) => {
-        const t = targetRef.current
-        if ((dy > 0 && t < 1) || (dy < 0 && t > 0)) {
-          setTarget(t + dy / (stage.clientHeight * total))
-          return true
-        }
-        return false
-      }
-      const onWheel = (ev) => {
-        const unit = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? stage.clientHeight : 1
-        if (move(ev.deltaY * unit)) ev.preventDefault()
-      }
-      let touchY = 0
-      const onTouchStart = (ev) => { touchY = ev.touches[0].clientY }
-      const onTouchMove = (ev) => {
-        const y = ev.touches[0].clientY
-        const dy = touchY - y
-        touchY = y
-        if (move(dy)) ev.preventDefault()
-      }
-      const onKey = (ev) => {
-        const step = stage.clientHeight * 0.25
-        const dy = { ArrowDown: step, PageDown: step * 3, ' ': step * 3, ArrowUp: -step, PageUp: -step * 3 }[ev.key]
-        if (dy && move(dy)) ev.preventDefault()
-      }
-      stage.addEventListener('wheel', onWheel, { passive: false })
-      stage.addEventListener('touchstart', onTouchStart, { passive: true })
-      stage.addEventListener('touchmove', onTouchMove, { passive: false })
-      stage.addEventListener('keydown', onKey)
-      cleanups.push(() => {
-        stage.removeEventListener('wheel', onWheel)
-        stage.removeEventListener('touchstart', onTouchStart)
-        stage.removeEventListener('touchmove', onTouchMove)
-        stage.removeEventListener('keydown', onKey)
-      })
-    }
-
-    return () => {
-      cancelAnimationFrame(raf)
-      cleanups.forEach((fn) => fn())
-    }
-  }, [enabled, useWindowScroll, total, smoothing, render])
-
-  const onMediaError = (ev) => {
-    const el = ev.currentTarget
-    if (!el.dataset.fallback) {
-      el.dataset.fallback = '1'
-      el.src = FALLBACK_SRC
-    }
-  }
-
+function Highland() {
   return (
-    <div
-      ref={stageRef}
-      className={`se-stage ${useWindowScroll ? 'se-stage--window' : 'se-stage--inline'}`}
-      role="region"
-      aria-label={title || alt || 'Expanding media'}
-      tabIndex={useWindowScroll ? undefined : 0}
-    >
-      <div
-        ref={frameRef}
-        className="se-frame"
-        style={{ width: `${startWidth}%`, height: `${startHeight}%`, borderRadius: startRadius }}
-      >
-        <div ref={mediaRef} className="se-media" style={{ transform: `scale(${mediaZoom})` }}>
-          {isVideo(src) ? (
-            <video src={src} autoPlay muted loop playsInline aria-label={alt} onError={onMediaError} />
-          ) : (
-            <img src={src} alt={alt} draggable={false} onError={onMediaError} />
-          )}
-        </div>
-        <div ref={scrimRef} className="se-scrim" style={{ opacity: overlayScrim }} />
-        {title && (
-          <div ref={titleRef} className="se-title" role="heading" aria-level={2}>
-            {title}
-          </div>
-        )}
-        {hasContent && (
-          <div ref={contentRef} className="se-content">
-            {children}
-          </div>
-        )}
+    <>
+      <div className="absolute inset-0"><ProjectArt variant="aether" /></div>
+      <div className={NAV} style={{ padding: '3cqw 4cqw', fontSize: '1.7cqw', fontWeight: 600, letterSpacing: '.18em' }}>
+        <span>HIGHLAND</span><span style={{ opacity: .7 }}>SELECT OFFICE SPACE · CONTACT US</span>
       </div>
-      {scrollHint && (
-        <div ref={hintRef} className="se-hint">
-          <span>{scrollHint}</span>
-          <i />
-        </div>
-      )}
+      <div className="absolute left-[4cqw] top-1/2 font-medium" style={{ fontSize: '9cqw', letterSpacing: '.12em', transform: 'translateY(-10%)' }}>HIGHLAND</div>
+      <div className="absolute right-[4cqw] top-[18%] text-right" style={{ fontSize: '2cqw', letterSpacing: '.12em', lineHeight: 1.1 }}>WHERE FUTURE<br />GAINS MOMENTUM</div>
+    </>
+  )
+}
+
+function Aagma() {
+  return (
+    <div className="absolute inset-0" style={{ background: '#f4f1ec', color: '#161616' }}>
+      <div className="absolute left-[4cqw] top-[5cqw] font-bold" style={{ fontSize: '2.6cqw' }}>Aagma</div>
+      <div className="absolute left-[4cqw] top-[34%] w-[52%]" style={{ fontFamily: SERIF_FONT, fontStyle: 'normal', fontWeight: 700, fontSize: '4.6cqw', lineHeight: 1.08 }}>
+        We make furniture that’s flexible, and playful, to fit modern life
+      </div>
+      <div className="absolute bottom-0 right-0 flex h-[52%] w-[40%] gap-[1cqw]">
+        {[['aure', 0], ['grain', 0], ['veloce', 120]].map(([v, h], i) => (
+          <div key={i} className="h-full flex-1 overflow-hidden"><ProjectArt variant={v} hue={h} /></div>
+        ))}
+      </div>
     </div>
   )
 }
 
-/* ---------- Section ---------- */
+function Nexora() {
+  return (
+    <div className="absolute inset-0" style={{ background: '#0c0c0d' }}>
+      <div className={NAV} style={{ padding: '3cqw 4cqw', fontSize: '1.7cqw' }}>
+        <span className="font-semibold">Nexora</span>
+        <span style={{ opacity: .75 }}>Platform · Use cases · Resources · Company</span>
+        <span className="rounded-full px-[2cqw] py-[.7cqw] font-semibold text-black" style={{ background: '#f4ff4a' }}>Book a demo</span>
+      </div>
+      <div className="absolute left-[4cqw] top-[34%] font-semibold" style={{ fontSize: '6.6cqw', lineHeight: 1, letterSpacing: '-.03em' }}>
+        Code Secured.<br /><span className="ml-[22cqw]">Ship Faster.</span>
+      </div>
+      <div className="absolute -bottom-[4cqw] right-[8cqw] h-[22cqw] w-[22cqw] overflow-hidden rounded-full opacity-90"><ProjectArt variant="grain" /></div>
+    </div>
+  )
+}
+
+function Sky() {
+  return (
+    <>
+      <div className="absolute inset-0"><ProjectArt variant="aether" hue={-12} /></div>
+      <div className={NAV} style={{ padding: '3cqw 4cqw', fontSize: '1.5cqw' }}>
+        <span className="font-semibold">Assistance</span>
+        <span style={{ opacity: .8 }}>SOLUTIONS · PLATFORM · CASE STUDIES · ABOUT</span>
+        <span className="rounded-full px-[1.8cqw] py-[.6cqw] font-semibold" style={{ background: '#6a3cff' }}>REQUEST DEMO</span>
+      </div>
+      <div className="absolute bottom-[8%] left-[4cqw] font-bold" style={{ fontSize: '5cqw', letterSpacing: '.02em' }}>RISK WORK</div>
+    </>
+  )
+}
+
+function Studio() {
+  return (
+    <>
+      <div className="absolute inset-0"><ProjectArt variant="aure" /></div>
+      <div className={NAV} style={{ padding: '3cqw 4cqw', fontSize: '1.7cqw', color: '#2a1410' }}>
+        <span className="font-bold">Auré Studio</span><span>Work · About · Contact</span>
+      </div>
+      <div className="absolute bottom-[7%] left-[4cqw] font-bold" style={{ fontSize: '7cqw', lineHeight: 1, letterSpacing: '-.03em', color: '#fff3e3' }}>Light, framed.</div>
+    </>
+  )
+}
+
+function Veloce() {
+  return (
+    <>
+      <div className="absolute inset-0"><ProjectArt variant="veloce" /></div>
+      <div className={NAV} style={{ padding: '3cqw 4cqw', fontSize: '1.7cqw', letterSpacing: '.18em' }}>
+        <span className="font-semibold">VELOCE</span><span style={{ opacity: .7 }}>MODELS · EXPERIENCE · RESERVE</span>
+      </div>
+      <div className="absolute left-[4cqw] top-[16%] font-semibold" style={{ fontSize: '5.6cqw', lineHeight: 1, letterSpacing: '-.02em' }}>Drive<br />the future.</div>
+    </>
+  )
+}
+
+/* ---------- background carousel: two columns drifting in opposite directions ---------- */
+
+const MOCKS = [Studio, Highland, Aagma, Nexora, Sky, Veloce]
+const CARD_H = 40 // cqh
+const GAP = 5 // cqh
+const LOOP_SECONDS_PER_CARD = 9 // slower = calmer
+
+const CAROUSEL_CSS = `
+@keyframes mf-up   { from { transform: translateY(0) }    to { transform: translateY(-50%) } }
+@keyframes mf-down { from { transform: translateY(-50%) } to { transform: translateY(0) } }
+@media (prefers-reduced-motion: reduce) { .mf-track { animation: none !important } }
+`
+
+function Column({ items, x, dir, offset }) {
+  // the list is rendered twice so the loop is seamless (the track moves by exactly one copy = 50%)
+  const loop = [...items, ...items]
+  const seconds = items.length * LOOP_SECONDS_PER_CARD
+  return (
+    <div className="absolute top-0" style={{ left: `${x}cqw`, width: '45cqw' }}>
+      <div
+        className="mf-track flex flex-col will-change-transform"
+        style={{
+          gap: `${GAP}cqh`,
+          marginTop: `${offset}cqh`,
+          paddingBottom: `${GAP}cqh`,
+          animation: `${dir === 'up' ? 'mf-up' : 'mf-down'} ${seconds}s linear infinite`,
+        }}
+      >
+        {loop.map((item, i) => (
+          <div
+            key={i}
+            className="relative shrink-0 overflow-hidden text-white"
+            style={{ height: `${CARD_H}cqh`, containerType: 'size', background: '#111', fontFamily: DISPLAY_FONT }}
+          >
+            {item}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function Wall() {
+  // real images when the folder has them, generated website mock-ups until then
+  const cards = BACKGROUND_IMAGES.length
+    ? BACKGROUND_IMAGES.map((src, i) => <img key={src} src={src} alt="" draggable={false} loading={i < 6 ? 'eager' : 'lazy'} className="h-full w-full select-none object-cover" />)
+    : MOCKS.map((Site, i) => <Site key={i} />)
+  const colA = cards.filter((_, i) => i % 2 === 0)
+  const colB = cards.filter((_, i) => i % 2 === 1)
+  return (
+    <div className="absolute inset-0">
+      <style>{CAROUSEL_CSS}</style>
+      <Column items={colA} x={3.7} dir="up" offset={-12} />
+      <Column items={colB.length ? colB : colA} x={51.3} dir="down" offset={-30} />
+    </div>
+  )
+}
+
+/* ---------- section ---------- */
 
 export default function Manifesto() {
+  const ref = useRef(null)
+  const reduced = useReducedMotion()
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end end'] })
+
+  const INTRO = 0.3 // 0 → INTRO: frame expands · INTRO → 1: card shrinks onto the wall
+  const open = useTransform(scrollYProgress, [0, INTRO], reduced ? [1, 1] : [0, 1], { ease: easeInOut })
+  const p = useTransform(scrollYProgress, [INTRO, 1], [0, 1], { clamp: true })
+  const shrink = useTransform(p, [0, 0.72], reduced ? [1, 1] : [0, 1], { ease: easeInOut })
+
+  // card size as % of the stage (same aspect as the screen): 42 → 90 → 50
+  const size = useTransform([open, shrink], ([o, s]) => lerp(lerp(42, 90, o), 50, s))
+  const cardW = useTransform(size, (v) => `${v}%`)
+  const cardRadius = useTransform(open, (v) => lerp(28, 14, v))
+  const contentScale = useTransform(size, (v) => v / 100)
+
+  const frameHint = useTransform(open, [0, 0.25], [1, 0])
+  // intro: the small card is softly blurred under the "BUILT WITH SCALE" title; as the card
+  // comes closer the card sharpens while the title blurs out and disappears
+  const cardBlur = useTransform(open, [0, 0.75], [9, 0])
+  const cardBlurFilter = useTransform(cardBlur, (b) => (b > 0.05 ? `blur(${b}px)` : 'none'))
+  const titleOpacity = useTransform(open, [0, 0.45], [1, 0])
+  const titleBlur = useTransform(open, [0, 0.45], [0, 18])
+  const titleFilter = useTransform(titleBlur, (b) => `blur(${b}px)`)
+  const titleScale = useTransform(open, [0, 0.6], [1, 1.12])
+  const cardNav = useTransform(shrink, [0, 0.25], [1, 0])
+  const wallOpacity = useTransform(open, [0.55, 1], [0, WALL_OPACITY]) // images at 70% over the black stage = dimmed in black
+  const wallScale = useTransform(shrink, [0, 1], reduced ? [1, 1] : [1.5, 1])
+  const wallBlur = useTransform(shrink, [0, 0.8], reduced ? [0, 0] : [14, 0], { clamp: true })
+  const wallFilter = useTransform(wallBlur, (b) => `blur(${b}px)`)
+  const pageNav = useTransform(p, [0.5, 0.78], [0, 1])
+  const cue = useTransform(p, [0.74, 0.9], [0, 1])
+
+  // mouse-move tilt + parallax (-0.5 … 0.5, smoothed)
+  const mx = useMotionValue(0)
+  const my = useMotionValue(0)
+  const sx = useSpring(mx, { stiffness: 90, damping: 20, mass: 0.6 })
+  const sy = useSpring(my, { stiffness: 90, damping: 20, mass: 0.6 })
+  useEffect(() => {
+    if (reduced) return
+    const move = (e) => {
+      mx.set(e.clientX / window.innerWidth - 0.5)
+      my.set(e.clientY / window.innerHeight - 0.5)
+    }
+    const leave = () => { mx.set(0); my.set(0) }
+    window.addEventListener('mousemove', move)
+    document.addEventListener('mouseleave', leave)
+    return () => {
+      window.removeEventListener('mousemove', move)
+      document.removeEventListener('mouseleave', leave)
+    }
+  }, [mx, my, reduced])
+  // only the text and the model react to the mouse (the card and the background stay still)
+  const textRotY = useTransform(sx, (v) => v * 4)
+  const textRotX = useTransform(sy, (v) => v * -3)
+  const modelRotY = useTransform(sx, (v) => v * 7)
+  const modelRotX = useTransform(sy, (v) => v * -5)
+  const textX = useTransform(sx, (v) => v * -34)
+  const textY = useTransform(sy, (v) => v * -20)
+  const badgeX = useTransform(sx, (v) => v * -52)
+  const badgeY = useTransform(sy, (v) => v * -30)
+  const modelX = useTransform(sx, (v) => v * 30)
+  const modelY = useTransform(sy, (v) => v * 12)
+
+  const pill = 'text-[clamp(.8rem,1.15cqw,1.2rem)]'
+  const logoStyle = { fontSize: 'clamp(1.05rem, 1.95cqw, 2.4rem)' }
+  const Logo = () => (
+    <span className="whitespace-nowrap tracking-[-0.01em]" style={logoStyle}>
+      ELENA<span style={{ opacity: 0.6 }}>VOSS</span>
+    </span>
+  )
+
   return (
-    <section
-      id="manifesto"
-      className="section"
-      style={{ display: 'block', position: 'relative', height: 'auto', minHeight: 0, padding: 0, overflow: 'visible' }}
-    >
-      <style>{CSS}</style>
-
-      <ScrollExpand
-        src="/hero.jpg"
-        alt="Product hero"
-        title="Built to scale"
-        scrollHint="Scroll inside the frame"
-        useWindowScroll
+    <section id="manifesto" ref={ref} style={{ height: '310svh', position: 'relative', background: '#0b0b0c' }}>
+      <div
+        className="sticky top-0 h-[100svh] w-full overflow-hidden text-white"
+        style={{ background: '#0b0b0c', fontFamily: DISPLAY_FONT, containerType: 'size' }}
       >
-        <h2>Every pixel, everywhere</h2>
-        <p>The frame opens up as you scroll and hands the whole stage to your media.</p>
-      </ScrollExpand>
+        {/* wall of website mock-ups: oversized + blurred at first, settles into focus */}
+        <motion.div style={{ opacity: wallOpacity, scale: wallScale, filter: wallFilter }} className="absolute inset-0 will-change-transform">
+          <Wall />
+        </motion.div>
 
+        {/* hero card – static plate; the text and the model float above it and follow the mouse */}
+        <motion.div
+          className="absolute left-1/2 top-1/2 z-10"
+          style={{
+            width: cardW,
+            height: cardW,
+            x: '-50%',
+            y: '-50%',
+            filter: cardBlurFilter,
+          }}
+        >
+          {/* back plate */}
+          <motion.div
+            className="absolute inset-0 overflow-hidden"
+            style={{
+              borderRadius: cardRadius,
+              background:
+                'radial-gradient(55% 45% at 6% 82%, rgba(255,140,60,.75), transparent 70%), radial-gradient(60% 50% at 95% 6%, rgba(255,120,50,.6), transparent 70%), linear-gradient(180deg, #c8431f 0%, #a52716 48%, #3d0f08 100%)',
+              boxShadow: '0 40px 120px -30px rgba(0,0,0,.7)',
+            }}
+          />
+
+          {/* text layer (mid depth) – laid out at full screen size, scaled to fit the card */}
+          <motion.div
+            className="pointer-events-none absolute left-1/2 top-1/2"
+            style={{ width: '100cqw', height: '100cqh', x: '-50%', y: '-50%', scale: contentScale }}
+          >
+            <motion.div style={{ x: textX, y: textY, rotateX: textRotX, rotateY: textRotY, transformPerspective: 1200 }} className="absolute left-[6%] top-[20%] right-[8%] sm:top-[34%]">
+              <h2
+                style={{
+                  fontSize: 'clamp(3.1rem, 8.2cqw, 10.5rem)',
+                  fontWeight: 500,
+                  lineHeight: 1.02,
+                  letterSpacing: '-0.025em',
+                  textShadow: '0 6px 50px rgba(60,10,0,.35)',
+                }}
+              >
+                Visualise
+                <br />
+                Your Mind
+                <br />
+                in Motion
+              </h2>
+            </motion.div>
+
+            <motion.p
+              style={{ x: badgeX, y: badgeY, fontSize: 'clamp(.8rem, 1.5cqw, 1.7rem)', lineHeight: 1.2 }}
+              className="absolute right-[4.5%] top-[37%] hidden max-w-[12em] text-right font-medium sm:block"
+            >
+              Award winning
+              <br />
+              Designs
+            </motion.p>
+            <motion.p
+              style={{ x: badgeX, y: badgeY, fontSize: 'clamp(.8rem, 1.5cqw, 1.7rem)', lineHeight: 1.2 }}
+              className="absolute right-[4.5%] top-[64%] hidden max-w-[12em] text-right font-medium sm:block"
+            >
+              Creative
+              <br />
+              Web Designer
+            </motion.p>
+            <p className="absolute left-[6%] right-[6%] top-[41%] flex justify-between text-[.8rem] font-medium leading-tight sm:hidden">
+              <span>Award winning<br />Designs</span>
+              <span className="text-right">Creative<br />Web Designer</span>
+            </p>
+
+            {/* in-card nav (fades as the card shrinks) */}
+            <motion.header style={{ opacity: cardNav }} className="absolute inset-x-0 top-0 flex items-center justify-between px-[5%] pt-[3.2%]">
+              <a href="#manifesto" className="pointer-events-auto"><Logo /></a>
+              <a
+                href="#contact"
+                className={`pointer-events-auto flex items-center gap-[.7em] rounded-full bg-white px-[1.4em] py-[.8em] font-medium text-black transition-transform hover:scale-[1.04] sm:px-[2.1em] sm:py-[1.05em] ${pill}`}
+              >
+                <span className="h-[.45em] w-[.45em] rounded-full bg-black" />
+                Get in Touch
+              </a>
+            </motion.header>
+          </motion.div>
+
+          {/* model layer (front) – original colours, lifted off the plate; head breaks out of the card's top edge */}
+          <motion.div
+            className="pointer-events-none absolute left-1/2 top-1/2"
+            style={{ width: '100cqw', height: '100cqh', x: '-50%', y: '-50%', scale: contentScale }}
+          >
+            <motion.img
+              src={MODEL_SRC}
+              alt="Portrait of a model in a black blazer"
+              draggable={false}
+              style={{
+                x: modelX,
+                y: modelY,
+                rotateX: modelRotX,
+                rotateY: modelRotY,
+                transformPerspective: 1200,
+                filter: 'drop-shadow(0 28px 36px rgba(30,4,0,.55)) drop-shadow(0 0 2px rgba(255,190,150,.35))',
+              }}
+              className="absolute bottom-0 left-[6%] h-[64%] w-[94%] select-none object-contain object-bottom sm:left-[29%] sm:h-[92%] sm:w-auto"
+            />
+          </motion.div>
+        </motion.div>
+
+        {/* intro title */}
+        <motion.h2
+          aria-hidden={false}
+          style={{ opacity: titleOpacity, filter: titleFilter, scale: titleScale }}
+          className="pointer-events-none absolute inset-x-0 top-1/2 z-20 -translate-y-1/2 px-[6%] text-center font-extrabold uppercase"
+        >
+          <span
+            style={{
+              display: 'block',
+              fontSize: 'clamp(2rem, 8.5cqw, 9rem)',
+              lineHeight: 0.95,
+              letterSpacing: '-0.03em',
+              textShadow: '0 8px 60px rgba(0,0,0,.55)',
+            }}
+          >
+            Built with scale
+          </span>
+        </motion.h2>
+
+        {/* page nav (appears over the wall once the card has shrunk) */}
+        <motion.header
+          style={{ opacity: pageNav }}
+          className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between px-[3.5%] pb-[4cqh] pt-[2.6cqh]"
+        >
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 -z-10"
+            style={{
+              backdropFilter: 'blur(18px)',
+              WebkitBackdropFilter: 'blur(18px)',
+              background: 'linear-gradient(to bottom, rgba(11,11,12,.55), transparent)',
+              maskImage: 'linear-gradient(to bottom, #000 55%, transparent)',
+              WebkitMaskImage: 'linear-gradient(to bottom, #000 55%, transparent)',
+            }}
+          />
+          <a href="#manifesto" className="pointer-events-auto"><Logo /></a>
+          <a
+            href="#contact"
+            className={`pointer-events-auto flex items-center gap-[.7em] rounded-full bg-white px-[1.4em] py-[.8em] font-medium text-black transition-transform hover:scale-[1.04] sm:px-[2.1em] sm:py-[1.05em] ${pill}`}
+          >
+            <span className="h-[.45em] w-[.45em] rounded-full bg-black" />
+            Get in Touch
+          </a>
+        </motion.header>
+
+        {/* hints */}
+        <motion.div style={{ opacity: frameHint }} className="pointer-events-none absolute inset-x-0 bottom-[5%] z-40 flex flex-col items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/60">
+          <span>Scroll</span>
+          <ChevronDown className="h-4 w-4 animate-bounce" />
+        </motion.div>
+        <motion.div style={{ opacity: cue }} className="pointer-events-none absolute inset-x-0 bottom-[3%] z-40 flex justify-center">
+          <span
+            className="flex items-center gap-2 rounded-full px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white"
+            style={{ background: 'rgba(11,11,12,.7)', border: '1px solid rgba(255,255,255,.2)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
+          >
+            Selected work
+            <ChevronDown className="h-4 w-4 animate-bounce" />
+          </span>
+        </motion.div>
+      </div>
     </section>
   )
 }
