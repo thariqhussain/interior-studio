@@ -24,7 +24,7 @@
 .section h1 { font-size: 3rem; font-weight: 500; }
 
 /* ---------- parallax preloader (components/ui/parallax-scrolling.tsx) ---------- */
-.parallax { --pic-y: 100%; /* vertical focus of the mountain/man picture: 100% = bottom of the photo (picture sits high), lower % = picture slides down */ position: relative; width: 100%; height: 100%; background: #0e0d0b; color: #fff; overflow: hidden; }
+.parallax { --pic-y: 70%; /* vertical focus of the mountain/man picture: 100% = bottom of the photo (picture sits high, moon cropped), 0% = top of the photo (moon + sky, man/ground cropped). Lower % = picture slides down, more sky/moon */ position: relative; width: 100%; height: 100%; background: #0e0d0b; color: #fff; overflow: hidden; }
 .parallax__header, .parallax__visuals, .parallax__layers { position: absolute; inset: 0; }
 .parallax__layer {
   /* picture-sized box + a dark "ground" skirt below it, so nothing shows through as the layer rises */
@@ -36,6 +36,9 @@
 .parallax__layer-img { position: absolute; left: 0; top: 0; width: 100%; height: 100svh; object-fit: cover; object-position: 50% var(--pic-y); user-select: none;
   /* the picture dissolves into the dark skirt below it, so there is no hard seam as the layer rises */
   -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent); mask-image: linear-gradient(to bottom, #000 78%, transparent); }
+/* foreground layer (4): keep the ground fully opaque instead of fading to transparent, so the lower mountain slopes of layers 1-2 never show through underneath it while it rises faster than they do */
+.parallax__layer[data-parallax-layer="4"] .parallax__layer-img { -webkit-mask-image: none; mask-image: none; }
+.parallax__layer[data-parallax-layer="4"]::after { content: ""; position: absolute; left: 0; width: 100%; top: 78svh; height: 22svh; pointer-events: none; background: linear-gradient(to bottom, rgba(14,13,11,0), #0e0d0b); }
 .parallax__layer-title { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; will-change: transform; pointer-events: none; }
 .parallax__title {
   margin: 0; padding: 0 4vw; text-align: center; text-transform: uppercase; color: #fff;
