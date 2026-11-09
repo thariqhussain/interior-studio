@@ -25,17 +25,17 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v))
 const EASE = [0.22, 1, 0.36, 1]
 const MASK = 'linear-gradient(90deg, transparent 0%, #000 22%, #000 78%, transparent 100%)'
 
-/* Details panel for the photo that is currently at the centre of the row. */
-function Details({ item, index, total }) {
+const FADE = {
+  initial: { opacity: 0, y: 14 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -10 },
+  transition: { duration: 0.45, ease: EASE },
+}
+
+/* Block ABOVE the row: step counter, title, duration, description and the key points. */
+function DetailsTop({ item, index, total }) {
   return (
-    <motion.div
-      key={index}
-      initial={{ opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -12 }}
-      transition={{ duration: 0.5, ease: EASE }}
-      className="mx-auto max-w-2xl px-6 text-center"
-    >
+    <motion.div key={index} {...FADE} className="px-6 text-center">
       <div className="flex flex-wrap items-center justify-center gap-3 text-xs font-medium uppercase tracking-[0.25em] text-white/60">
         <span className="tabular-nums text-white">{String(index + 1).padStart(2, '0')}</span>
         <span className="text-white/30">/ {String(total).padStart(2, '0')}</span>
@@ -54,16 +54,25 @@ function Details({ item, index, total }) {
           </li>
         ))}
       </ul>
+    </motion.div>
+  )
+}
 
-      <div className="mx-auto mt-7 grid max-w-xl grid-cols-1 gap-px overflow-hidden rounded-xl border border-white/10 bg-white/10 text-left sm:grid-cols-2">
-        <div className="bg-black p-4">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">Your part</p>
-          <p className="mt-2 text-sm leading-snug text-white/80">{item.you}</p>
-        </div>
-        <div className="bg-black p-4">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-blue-400">You&apos;ll receive</p>
-          <p className="mt-2 text-sm leading-snug text-white/80">{item.get}</p>
-        </div>
+/* Card BELOW the row: what the client does, and what they get. */
+function DetailsBottom({ item, index }) {
+  return (
+    <motion.div
+      key={index}
+      {...FADE}
+      className="mx-auto grid w-full max-w-2xl grid-cols-1 overflow-hidden rounded-2xl border border-white/15 text-left sm:grid-cols-2"
+    >
+      <div className="p-5 sm:p-6">
+        <p className="text-xs uppercase tracking-[0.22em] text-white/45">Your part</p>
+        <p className="mt-3 text-base leading-snug text-white/85">{item.you}</p>
+      </div>
+      <div className="border-t border-white/15 p-5 sm:border-l sm:border-t-0 sm:p-6">
+        <p className="text-xs uppercase tracking-[0.22em] text-blue-400">You&apos;ll receive</p>
+        <p className="mt-3 text-base leading-snug text-white/85">{item.get}</p>
       </div>
     </motion.div>
   )
@@ -176,24 +185,70 @@ export default function CurvedMarquee({ images, speed = 46, lines, caption, deta
   const list = useMemo(() => Array.from({ length: images.length * COPIES }, (_, i) => i % images.length), [images.length])
   const sw = d.tw / SLICES
 
+  // empty space above/below the centre card inside the row: the text panels overlap it, so the taller outer
+  // cards tuck behind the panels while the centre cards stay fully visible
+  const tuck = Math.max(0, ((d.rowH - d.th) / 2) * 0.85)
+  const pause = {
+    onMouseEnter: () => { paused.current = true },
+    onMouseLeave: () => { paused.current = false },
+  }
+
   return (
-    <div className="text-center">
-      <motion.h2
-        initial={{ opacity: 0, y: 36 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.4 }}
-        transition={{ duration: 1, ease: EASE }}
-        className="mx-auto max-w-4xl px-6 text-5xl font-semibold leading-[1.02] tracking-[-0.045em] text-white sm:text-7xl"
-      >
-        {lines.map((l) => (
-          <span key={l} className="block">{l}</span>
-        ))}
-      </motion.h2>
+    <div>
+      {/* heading: left side, left-aligned */}
+      <div className="mx-auto max-w-7xl px-6 text-left sm:px-10 lg:px-14">
+        <motion.p
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.4 }}
+          transition={{ duration: 0.8, ease: EASE }}
+          className="flex items-center gap-4 text-xs font-medium uppercase tracking-[0.25em] text-blue-400"
+        >
+          <span className="h-px w-10 bg-blue-400" />
+          Our process
+        </motion.p>
+        <motion.h2
+          initial={{ opacity: 0, y: 36 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.4 }}
+          transition={{ duration: 1, ease: EASE }}
+          className="mt-5 max-w-4xl text-5xl font-semibold leading-[1.02] tracking-[-0.045em] text-white sm:text-7xl"
+        >
+          {lines.map((l) => (
+            <span key={l} className="block">{l}</span>
+          ))}
+        </motion.h2>
+        {caption && (
+          <motion.p
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.9, ease: EASE, delay: 0.15 }}
+            className="mt-6 max-w-md text-base leading-relaxed text-white/50"
+          >
+            {caption}
+          </motion.p>
+        )}
+      </div>
+
+      {/* step details above the row */}
+      {details && (
+        <div
+          className="relative z-10 mx-auto mt-12 w-full max-w-3xl bg-black pb-3 sm:mt-16"
+          style={{ marginBottom: -tuck }}
+          {...pause}
+        >
+          <div className="min-h-[16rem] sm:min-h-[10.5rem]">
+            <AnimatePresence mode="wait">
+              <DetailsTop key={active} item={details[active]} index={active} total={details.length} />
+            </AnimatePresence>
+          </div>
+        </div>
+      )}
 
       <div
-        className="relative mt-6 sm:mt-10"
-        onMouseEnter={() => { paused.current = true }}
-        onMouseLeave={() => { paused.current = false }}
+        className={`relative ${details ? '' : 'mt-6 sm:mt-10'}`}
+        {...pause}
       >
         {/* soft coloured glow behind the outer cards – radial, so it has no hard edges */}
         {['left', 'right'].map((side) => (
@@ -256,17 +311,19 @@ export default function CurvedMarquee({ images, speed = 46, lines, caption, deta
         </div>
       </div>
 
-      {details ? (
-        // details of the photo at the centre – the drift pauses while the pointer is over this panel
+      {/* what you do / what you get, below the row, then the progress dots */}
+      {details && (
         <div
-          className="mt-8 min-h-[22rem] sm:mt-12 sm:min-h-[19rem]"
-          onMouseEnter={() => { paused.current = true }}
-          onMouseLeave={() => { paused.current = false }}
+          className="relative z-10 mx-auto w-full max-w-4xl bg-black px-6 pt-6"
+          style={{ marginTop: -tuck }}
+          {...pause}
         >
-          <AnimatePresence mode="wait">
-            <Details key={active} item={details[active]} index={active} total={details.length} />
-          </AnimatePresence>
-          <div className="mt-6 flex justify-center gap-2" aria-hidden="true">
+          <div className="min-h-[11rem] sm:min-h-[8.5rem]">
+            <AnimatePresence mode="wait">
+              <DetailsBottom key={active} item={details[active]} index={active} />
+            </AnimatePresence>
+          </div>
+          <div className="mt-8 flex justify-center gap-2" aria-hidden="true">
             {details.map((_, k) => (
               <span
                 key={k}
@@ -276,16 +333,6 @@ export default function CurvedMarquee({ images, speed = 46, lines, caption, deta
             ))}
           </div>
         </div>
-      ) : (
-        <motion.p
-          initial={{ opacity: 0, y: 24 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.9, ease: EASE, delay: 0.15 }}
-          className="mx-auto mt-6 max-w-sm px-6 text-base leading-relaxed text-white/50 sm:mt-10"
-        >
-          {caption}
-        </motion.p>
       )}
     </div>
   )

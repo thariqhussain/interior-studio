@@ -6,6 +6,42 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  /* semantic tokens used by components/ui/team-lanyard-rail.tsx (values are set on .team-theme below) */
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+}
+
+/* Team section theme: dark stage, warm paper badges. The component also reads var(--color-*) directly
+   in inline styles, so both the short and the --color-* names are defined here. */
+.team-theme {
+  --background: #0a0a09;
+  --foreground: #f5f1ea;
+  --card: #f7f3ec;
+  --card-foreground: #171614;
+  --muted: #e9e3d6;
+  --muted-foreground: #7d776e;
+  --border: #d9d2c4;
+  --ring: #f97316;
+  --chart-1: #c8553d; /* terracotta */
+  --chart-2: #6b7a4a; /* olive */
+  --chart-3: #d9a441; /* sand */
+  --chart-4: #4a6fa5; /* slate blue */
+  --chart-5: #8a4f7d; /* plum */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
 }
 
 :root {

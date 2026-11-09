@@ -34,9 +34,14 @@ const LAYERS = [
 ];
 
 const IMAGES: Record<string, string> = {
-  '1': '/assets/parallax-layers/layer-1-sky.webp', // night sky + moon only (the mountain was cut out of it)
+  '1': '/assets/parallax-layers/layer-6.webp', // background sky layer (swapped from layer-1-sky.webp)
   '2': '/assets/parallax-layers/layer-5-building.webp', // the building, standing where the mountain used to be
   '4': '/assets/parallax-layers/layer-4.webp',
+};
+
+/** static vertical nudge (px, positive = down) per layer image; applied to the <img>, so it never fights GSAP's y on the layer wrapper */
+const OFFSET_Y: Record<string, number> = {
+  '2': 20, // building (layer-5) sits 20px lower
 };
 
 const style = (speed: number, travel: number) =>
@@ -87,7 +92,15 @@ export function ParallaxComponent({ triggerRef, title = 'ELENA VOSS', travel = 0
           <div data-parallax-layers className="parallax__layers">
             {['1', '2'].map((l) => (
               <div key={l} data-parallax-layer={l} className="parallax__layer" style={style(LAYERS[+l - 1].speed, travel)}>
-                <img src={IMAGES[l]} loading="eager" width={800} alt="" className="parallax__layer-img" draggable={false} />
+                <img
+                  src={IMAGES[l]}
+                  loading="eager"
+                  width={800}
+                  alt=""
+                  className="parallax__layer-img"
+                  draggable={false}
+                  style={OFFSET_Y[l] ? { translate: `0 ${OFFSET_Y[l]}px` } : undefined}
+                />
               </div>
             ))}
             <div data-parallax-layer="3" className="parallax__layer-title">

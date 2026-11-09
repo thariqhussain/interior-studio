@@ -12,6 +12,7 @@ import Team from './sections/Team.jsx'
 import FAQ from './sections/FAQ.jsx'
 import Contact from './sections/Contact.jsx'
 import Footer from './sections/Footer.jsx'
+import ScrollReveal from './components/ui/scroll-reveal'
 
 export default function App() {
   useSmoothScroll()
@@ -32,8 +33,10 @@ export default function App() {
       <Testimonials />
       <Team />
       <FAQ />
-      <Contact />
-      <Footer />
+      {/* Contact opens up like doors while the footer appears behind it */}
+      <ScrollReveal behind={<Footer />}>
+        <Contact />
+      </ScrollReveal>
     </main>
   )
 }
