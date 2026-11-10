@@ -1,0 +1,7 @@
+/* Fonts, self-hosted (public/fonts): no third-party stylesheet to wait for, no extra connections. Latin subset only.
+   Bricolage Grotesque is one variable file covering every weight used. */
+@font-face { font-family: "Bricolage Grotesque"; font-style: normal; font-weight: 200 800; font-display: swap; src: url(/fonts/bricolage-grotesque.woff2) format("woff2"); }
+@font-face { font-family: "Instrument Serif"; font-style: normal; font-weight: 400; font-display: swap; src: url(/fonts/instrument-serif.woff2) format("woff2"); }
+@font-face { font-family: "Instrument Serif"; font-style: italic; font-weight: 400; font-display: swap; src: url(/fonts/instrument-serif-italic.woff2) format("woff2"); }
+/* Inter (variable, all weights) – used by the Manifesto's hero screen */
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap; src: url(/fonts/inter.woff2) format("woff2"); }

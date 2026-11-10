@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 
@@ -7,283 +7,238 @@ gsap.registerPlugin(ScrollTrigger)
 ScrollTrigger.config({ ignoreMobileResize: true })
 
 /* =====================================================================
-   Hero section – scroll-scrubbed image sequence (single file)
-   Needs: gsap (already installed).
-
-   The hero is pinned while you scroll; scroll position picks a point in a
-   144-frame sequence (public/hero-frames, extracted from interior_hero.mp4) that
-   is painted onto a <canvas>. Why frames instead of <video>: seeking a video
-   (one keyframe, async seeks) makes the motion step; decoded frames can be drawn
-   instantly, in both directions, and cross-faded for sub-frame smoothness.
-
-   Easing: the scroll position is eased (soft in/out at both ends) and chased with
-   an exponential smoother, so the building glides instead of ticking forward.
+   Hero section – a walkthrough in three short clips (public/hero-videos, re-encoded from public/assets/preloader/video1–3.mp4).
+   Layout (top → bottom): heading | full-width video band, exactly 70% of the screen height, no gaps, square | description + controls.
+   • After the preloader's diagonal wipe the hero is an ordinary section: nothing to scroll through. NOTHING PLAYS until the visitor
+     presses Next or Previous – the first room rests on its last frame, with its heading and description showing.
+   • Next / Prev buttons (also ← / → keys and the dots) move between the rooms. Each clip plays the camera move into its room and
+     rests on its last frame; the room's heading and description fade in as it settles.
+   • Two <video> layers cross-fade; the next clip is preloaded in the idle one. Clips only play while the hero is on screen.
+   • Only the wipe is scroll-driven: the stage stays pinned for IRIS_START + IRIS_SCREENS screens (keep Preloader.jsx and App.jsx in sync).
    ===================================================================== */
 
-const FRAMES = 145        // frames in /hero-frames/{lg,sm}/f0001.webp …
-const SCROLL_SCREENS = 3  // how many screens of scrolling play the whole sequence
-const IRIS_START = 0.6    // screens of scroll (the preloader's text dispersal) before the wipe starts
-const IRIS_SCREENS = 1.2  // screens of scroll the wipe takes to finish (was 0.6 – now half the speed; keep Preloader.jsx + App.jsx in sync)
-const SMOOTHING = 0.085   // 0–1, lower = floatier catch-up to the scroll position
-const EDGE_EASE = 0.65    // 0 = linear playback, 1 = full smoothstep (slow start & finish)
-const LOAD_THREADS = 6
+const IRIS_START = 0.6
+const IRIS_SCREENS = 1.2
 
-const frameUrl = (set, i) => `/hero-frames/${set}/f${String(i + 1).padStart(4, '0')}.webp`
-const smooth = (p) => p * p * (3 - 2 * p)
-const easeProgress = (p) => p + (smooth(p) - p) * EDGE_EASE
-
-/* load order: first/last frame, then ever finer strides, so scrubbing works before everything arrived */
-function loadOrder() {
-  const seen = new Set()
-  const order = []
-  const add = (i) => { if (i >= 0 && i < FRAMES && !seen.has(i)) { seen.add(i); order.push(i) } }
-  add(0)
-  add(FRAMES - 1)
-  for (const stride of [24, 12, 6, 3, 1]) for (let i = 0; i < FRAMES; i += stride) add(i)
-  return order
-}
-
-/* ---------------------------------------------------------------------
-   Chapter titles. Keyed to the FRAME NUMBER (not to scroll), so each title belongs to
-   what the camera is showing. window = [first frame, last frame] the chapter is on screen.
-   NOTE: the wording below is placeholder copy – replace with the studio's own.
-   --------------------------------------------------------------------- */
-const CHAPTERS = [
-  { n: '01', title: 'Arrival', caption: 'Timber, stone and glass, set low into the land.', window: [2, 38] },
-  { n: '02', title: 'Threshold', caption: 'One line of glazing between outside and in.', window: [41, 74] },
-  { n: '03', title: 'Light', caption: 'Warm, indirect, and never in the way.', window: [78, 121] },
-  { n: '04', title: 'Home', caption: 'Rooms drawn first, then built with care.', window: [125, Infinity], cta: true },
+/* NOTE: the wording is placeholder copy – replace it with what the studio did in each room. */
+const ROOMS = [
+  { n: '01', title: 'Living Room', caption: 'Layered timber, stone and concealed lighting around an open study wall.' },
+  { n: '02', title: 'Master Bedroom', caption: 'A calm suite: upholstered headboard wall, stone fireplace and a view of the lake.' },
+  { n: '03', title: 'Kitchen', caption: 'Dark joinery, a long island and one dining table for the whole family.' },
 ]
+const N = ROOMS.length
+const clipUrl = (i) => `/hero-videos/room${i + 1}.mp4`
+const posterUrl = (i) => `/hero-videos/room${i + 1}.webp`
+const restPosterUrl = (i) => `/hero-videos/room${i + 1}-end.webp` // the last frame of a clip: what the first room shows before anything plays
+const FADE_MS = 500
+const TEXT_BEFORE_END = 0.8 // seconds before a clip ends that its text starts to appear
 
-const FADE_FRAMES = 4
 const clamp01 = (v) => Math.min(1, Math.max(0, v))
-/* 0 → 1 → 0 as the frame position moves through [a, b] */
-const visibility = (pos, [a, b]) => clamp01((pos - a) / FADE_FRAMES) * clamp01((b - pos) / FADE_FRAMES)
-
-const WIPE_LEAN = 0.28  // how far the wipe edge leans, as a fraction of the larger screen side (0 = vertical edge)
-
-/* clip-path: a diagonal edge sweeping left → right, revealing the video behind it.
-   The lean is sized from the screen so the angle stays pleasant on phones and tablets too. */
-function wipeGeom(t, w, h) {
-  const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2 // easeInOutCubic
-  const skew = Math.min(70, ((WIPE_LEAN * Math.max(w, h)) / w) * 100) // % of the width
-  const x = -skew + e * (100 + 2 * skew) // edge's centre line travels fully off-screen to off-screen
-  return { skew, x, e }
-}
-function wipePath(t, w, h) {
-  const { skew, x } = wipeGeom(t, w, h)
-  return `polygon(0% 0%, ${(x + skew).toFixed(3)}% 0%, ${(x - skew).toFixed(3)}% 100%, 0% 100%)`
-}
+/* Wipe: a straight horizontal edge sweeping top → bottom. Done with TRANSFORMS only (no clip-path, which would repaint the
+   videos and text every frame): a panel with overflow:hidden slides down from above the screen while its content slides up by the
+   same amount, so the content stays put and is uncovered from the top. */
+const easeWipe = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2) // easeInOutCubic
 
 const CSS = `
-.hv-stage {
-  position: relative;
-  z-index: 40;
-  width: 100%;
-  height: 100svh;
-  overflow: hidden;
-  color: #f4f4f2;
-}
-/* the wipe's clip-path lives on this inner layer */
-.hv-clip { position: absolute; inset: 0; overflow: hidden; background: #0d0d0e; }
-.hv-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.hv-title {
-  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
-  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
-}
-.hv-shade {
-  position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(to top, rgba(0,0,0,.55), transparent 48%);
-}
-.hv-ui { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .5s ease; }
-.hv-ui--on { opacity: 1; }
-.hv-sans { font-family: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif; }
-
-/* chapter title block (lower left) */
-.hv-chap { position: absolute; left: clamp(18px, 4.2vw, 64px); bottom: clamp(56px, 11vh, 120px); max-width: min(40em, 88%); color: #fff;
-  opacity: var(--v, 0); transform: translateY(calc((1 - var(--v, 0)) * 22px)); filter: blur(calc((1 - var(--v, 0)) * 7px));
-  text-shadow: 0 2px 30px rgba(0,0,0,.4); }
-.hv-chap .num { display: flex; align-items: center; gap: 12px; margin-bottom: clamp(8px, 1.6vh, 16px);
-  font: 500 clamp(10px, .8vw, 12px) / 1 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: .2em; text-transform: uppercase; }
-.hv-chap .num i { display: block; width: 36px; height: 1px; background: rgba(255,255,255,.75); }
-.hv-chap h3 { margin: 0; font: 400 clamp(3.4rem, 10.5vw, 11.5rem) / .92 "Instrument Serif", Georgia, serif; letter-spacing: -.025em; }
-.hv-chap p { margin: clamp(10px, 2vh, 20px) 0 0; max-width: 24em; opacity: .92;
-  font: 400 clamp(.9rem, 1.25vw, 1.2rem) / 1.45 "Bricolage Grotesque", system-ui, sans-serif; }
-.hv-cta { display: inline-flex; align-items: center; gap: 10px; margin-top: clamp(14px, 2.4vh, 26px); padding: 12px 22px; border-radius: 999px;
-  background: #fff; color: #0d0d0e; text-decoration: none; text-shadow: none; transition: transform .25s ease;
-  font: 500 clamp(.8rem, 1vw, .95rem) / 1 "Bricolage Grotesque", system-ui, sans-serif; }
-.hv-cta:hover { transform: translateX(4px); }
-.hv-prog { position: absolute; left: 50%; transform: translateX(-50%); bottom: clamp(18px, 4vh, 40px); display: flex; align-items: center; gap: 12px; color: rgba(255,255,255,.85);
-  font: 500 clamp(10px, .78vw, 12px) / 1 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: .16em; text-transform: uppercase; text-shadow: 0 1px 12px rgba(0,0,0,.5); }
-.hv-prog .track { width: clamp(70px, 9vw, 130px); height: 1px; background: rgba(255,255,255,.3); }
-.hv-prog .fill { height: 100%; background: #fff; transform-origin: left; transform: scaleX(0); }
-
-.hv-hint {
-  position: absolute; left: 50%; bottom: clamp(16px, 4vh, 44px); transform: translateX(-50%);
-  display: flex; flex-direction: column; align-items: center; gap: 10px;
-  font: 500 clamp(0.72rem, 1.1vw, 0.95rem) / 1 system-ui, -apple-system, "Segoe UI", sans-serif;
-  letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,.75);
-  pointer-events: none; white-space: nowrap;
-}
-.hv-hint i { display: block; width: 1px; height: 28px; background: linear-gradient(rgba(255,255,255,.75), transparent); }
-@media (max-width: 640px) { .hv-prog { display: none; } }
+.hv-stage { position: relative; z-index: 40; width: 100%; height: 100svh; overflow: hidden; color: #f4f4f2; }
+/* the wipe's clip-path lives on this inner layer. Rows: heading zone (15%) | video band (70%) | description zone (15%) */
+.hv-panel { position: absolute; inset: 0; overflow: hidden; will-change: transform; }
+.hv-clip { position: absolute; inset: 0; background: #0d0d0e; display: grid; grid-template-rows: 15fr 70fr 15fr; will-change: transform; }
+.hv-sans { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+.hv-band { position: relative; overflow: hidden; background: #000; }
+.hv-vwrap { position: absolute; inset: 0; will-change: transform; }
+.hv-vid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity ${FADE_MS}ms ease; }
+.hv-title { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.hv-top, .hv-bottom { position: relative; padding: 0 clamp(28px, 5vw, 84px); }
+.hv-top { display: flex; align-items: flex-end; padding-bottom: clamp(14px, 2.4vh, 28px); }
+.hv-bottom { display: flex; align-items: center; justify-content: center; }
+.hv-slot { position: relative; }
+.hv-slot > .hv-text { position: absolute; left: 0; bottom: 0; pointer-events: none; visibility: hidden; transition: visibility 0s linear .7s; }
+.hv-bottom .hv-slot > .hv-text { top: 50%; bottom: auto; transform: translateY(-50%); }
+.hv-slot > .hv-text[data-on] { visibility: visible; transition-delay: 0s; }
+/* heading: plain solid text in the default system font – nothing here forces a repaint */
+.hv-h { margin: 0; font-weight: 700; font-size: clamp(3rem, 6vw, 6.6rem); line-height: 1; letter-spacing: -.035em; white-space: nowrap; color: #fff; }
+/* each room's text fades and rises as ONE layer (opacity + transform only, so it runs on the GPU) */
+.hv-text { opacity: 0; transform: translate3d(0, 16px, 0); will-change: opacity, transform;
+  transition: opacity .45s ease, transform .55s cubic-bezier(.22,1,.36,1), visibility 0s linear .55s; }
+.hv-text[data-on] { opacity: 1; transform: none; transition-delay: 0s; }
+.hv-desc { position: absolute; left: 0; right: 0; bottom: 0; height: 34%; pointer-events: none; background: linear-gradient(to top, rgba(0,0,0,.6), transparent); }
+.hv-slot.hv-desc > .hv-text { left: 50%; translate: -50% 0; bottom: clamp(20px, 4.5vh, 46px); width: min(36em, 88%); text-align: center; }
+.hv-desc .hv-p { margin: 0; max-width: 31em; color: rgba(255,255,255,.7); font-size: clamp(.9rem, 1.08vw, 1.05rem); line-height: 1.55; }
+/* controls: segmented progress + circular Previous + a pill Next that names the room it leads to */
+.hv-ctl { flex: none; display: flex; align-items: center; gap: 22px; }
+.hv-btn:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.hv-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 48px; border-radius: 999px; cursor: pointer; color: #fff;
+  transition: background-color .3s, color .3s, transform .3s cubic-bezier(.22,1,.36,1), border-color .3s; }
+.hv-btn svg { width: 18px; height: 18px; flex: none; transition: transform .3s cubic-bezier(.22,1,.36,1); }
+.hv-btn:active { transform: scale(.96); }
+.hv-prev { width: 48px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.16); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.hv-prev:hover { background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.3); }
+.hv-prev:hover svg { transform: translateX(-2px); }
+.hv-next { position: relative; padding: 0 8px 0 22px; background: #fff; color: #0d0d0e; border: 0; font: 600 14px / 1 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; letter-spacing: -.01em; }
+.hv-next small { font-weight: 500; font-size: 13px; color: rgba(13,13,14,.5); }
+.hv-next b { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 99px; background: #0d0d0e; color: #fff; transition: background-color .3s; }
+.hv-next:hover b svg { transform: translateX(2px); }
+.hv-next:hover { background: #ffe9dc; }
+/* before anything has been played, Next breathes softly to say "press me" */
+.hv-next[data-idle]::after { content: ""; position: absolute; inset: -5px; border-radius: 999px; border: 1px solid rgba(255,255,255,.55); animation: hv-ping 2.2s cubic-bezier(.22,1,.36,1) infinite; pointer-events: none; }
+@keyframes hv-ping { 0% { opacity: .9; transform: scale(.96); } 100% { opacity: 0; transform: scale(1.12); } }
+@media (prefers-reduced-motion: reduce) { .hv-vid, .hv-p, .hv-btn { transition: none; } .hv-next[data-idle]::after { animation: none; } }
 `
+
+const Chevron = ({ dir }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d={dir === 'left' ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7'} />
+  </svg>
+)
 
 export default function Hero() {
   const stageRef = useRef(null)
-  const canvasRef = useRef(null)
-  const hintRef = useRef(null)
-  const uiRef = useRef(null)
+  const wrapRef = useRef(null)
+  const vids = useRef([null, null])
+  const api = useRef({})
+  const [index, setIndex] = useState(0)
+  const [textOn, setTextOn] = useState(true)
+  const [started, setStarted] = useState(false)
 
   useLayoutEffect(() => {
     const stage = stageRef.current
-    const canvas = canvasRef.current
-    if (!stage || !canvas) return
-
-    const ctx2d = canvas.getContext('2d', { alpha: false })
-    ctx2d.imageSmoothingQuality = 'high'
+    const wrap = wrapRef.current
+    const panelEl = stage?.querySelector('[data-panel]')
+    const clipEl = stage?.querySelector('[data-clip]')
+    if (!stage || !wrap || !clipEl || !panelEl) return
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const set = window.innerWidth <= 820 ? 'sm' : 'lg'
+    const st = { room: 0, front: 0, seen: false, iris: reduced ? 1 : 0, token: 0, wantPlay: false }
+    const front = () => vids.current[st.front]
+    const idle = () => vids.current[1 - st.front]
 
-    const frames = new Array(FRAMES).fill(null)
-    let alive = true
-    let target = 0   // scroll progress 0..1 (raw)
-    let current = 0  // smoothed progress
-    let raf = 0
-    let last = 0
-    let st
+    const load = (v, i) => {
+      if (v.dataset.room === String(i)) return
+      v.dataset.room = String(i)
+      v.poster = posterUrl(i)
+      v.src = clipUrl(i)
+      v.load()
+    }
+    const rest = (v) => {
+      const go = () => { if (isFinite(v.duration)) v.currentTime = Math.max(0, v.duration - 0.05) }
+      v.readyState >= 1 ? go() : v.addEventListener('loadedmetadata', go, { once: true })
+    }
+    const sync = () => {
+      const v = front()
+      if (!v || reduced) return
+      if (st.wantPlay && st.seen && st.iris > 0.25) { if (!v.ended && v.paused) v.play().catch(() => {}) } else if (!v.paused) v.pause()
+    }
+    const onTime = (v) => {
+      if (v !== front() || !isFinite(v.duration)) return
+      if (v.ended || v.currentTime >= v.duration - TEXT_BEFORE_END) setTextOn(true)
+    }
 
-    /* nearest frame that has already loaded */
-    const nearest = (i) => {
-      for (let d = 0; d < FRAMES; d++) {
-        if (frames[i - d]) return frames[i - d]
-        if (frames[i + d]) return frames[i + d]
+    const go = (to) => {
+      const next = ((to % N) + N) % N
+      if (next === st.room) return
+      st.wantPlay = true
+      setStarted(true)
+      warm()
+      const my = ++st.token
+      st.room = next
+      setIndex(next)
+      setTextOn(false)
+      const incoming = idle()
+      const outgoing = front()
+      load(incoming, next)
+      const reveal = () => {
+        if (my !== st.token) return
+        incoming.style.opacity = '1'
+        outgoing.style.opacity = '0'
+        st.front = 1 - st.front
+        setTimeout(() => {
+          if (my !== st.token) return
+          outgoing.pause()
+          load(outgoing, (next + 1) % N)
+        }, FADE_MS + 60)
+        if (reduced) setTextOn(true)
       }
-      return null
-    }
-
-    /* ---- chapter titles, shown by frame number ---- */
-    const chapEls = [...stage.querySelectorAll('[data-chap]')]
-    const fillEl = stage.querySelector('[data-fill]')
-    const clipEl = stage.querySelector('[data-clip]')
-
-    const updateCaptions = (pos) => {
-      chapEls.forEach((el, i) => {
-        const v = visibility(pos, CHAPTERS[i].window)
-        el.style.setProperty('--v', v.toFixed(3))
-        el.style.visibility = v > 0.001 ? 'visible' : 'hidden'
-        if (CHAPTERS[i].cta) el.style.pointerEvents = v > 0.6 ? 'auto' : 'none'
-      })
-      if (fillEl) fillEl.style.transform = `scaleX(${(pos / (FRAMES - 1)).toFixed(4)})`
-    }
-
-    const cover = (img) => {
-      const cw = canvas.width
-      const ch = canvas.height
-      const s = Math.max(cw / img.naturalWidth, ch / img.naturalHeight)
-      const w = img.naturalWidth * s
-      const h = img.naturalHeight * s
-      ctx2d.drawImage(img, (cw - w) / 2, (ch - h) / 2, w, h)
-    }
-
-    /* paint a (fractional) frame position: the frame, cross-faded into the next one */
-    const draw = (progress) => {
-      const pos = easeProgress(progress) * (FRAMES - 1)
-      updateCaptions(pos)
-      const i = Math.min(FRAMES - 1, Math.floor(pos))
-      const a = pos - i
-      const A = nearest(i)
-      if (!A) return
-      cover(A)
-      if (a > 0.02 && i + 1 < FRAMES) {
-        const B = nearest(i + 1)
-        if (B && B !== A) {
-          ctx2d.globalAlpha = a
-          cover(B)
-          ctx2d.globalAlpha = 1
-        }
-      }
-    }
-
-    const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2)
-      canvas.width = Math.round(stage.clientWidth * dpr)
-      canvas.height = Math.round(stage.clientHeight * dpr)
-      draw(current)
-    }
-
-    const tick = (now) => {
-      const dt = last ? Math.min(0.05, (now - last) / 1000) : 1 / 60
-      last = now
-      const k = 1 - Math.pow(1 - SMOOTHING, dt * 60)
-      current = Math.abs(target - current) < 0.00005 ? target : current + (target - current) * k
-      draw(current)
-      if (current === target) { raf = 0; last = 0 } else raf = requestAnimationFrame(tick)
-    }
-    const kick = () => { if (!raf) { last = 0; raf = requestAnimationFrame(tick) } }
-
-    /* preload the sequence (progressively, a few at a time) */
-    const order = loadOrder()
-    let cursor = 0
-    const worker = async () => {
-      while (alive && cursor < order.length) {
-        const i = order[cursor++]
-        const img = new Image()
-        img.decoding = 'async'
-        img.src = frameUrl(set, i)
-        try { await img.decode() } catch { continue }
-        if (!alive) return
-        frames[i] = img
-        if (i === 0) resize()
-        else if (!raf) draw(reduced ? 0.5 : current)
+      if (reduced) {
+        rest(incoming)
+        incoming.addEventListener('loadeddata', reveal, { once: true })
+        if (incoming.readyState >= 2) reveal()
+      } else {
+        incoming.currentTime = 0
+        incoming.addEventListener('playing', reveal, { once: true })
+        incoming.play().catch(() => {})
       }
     }
-    for (let t = 0; t < LOAD_THREADS; t++) worker()
-    if (reduced) frames.length && (target = current = 0.5)
+    api.current.go = go
+    api.current.step = (d) => go(st.room + d)
 
-    const ro = new ResizeObserver(resize)
+    const [v0, v1] = vids.current
+    v0.style.opacity = '1'
+    v0.poster = restPosterUrl(0) // a still of the first room's last frame – nothing is loaded or decoded until the wipe starts
+    vids.current.forEach((v) => { v.addEventListener('timeupdate', () => onTime(v)); v.addEventListener('ended', () => onTime(v)) })
+    setTextOn(true)
+    // starts loading the first clip (seeking it to its last frame, so it matches the still) and preloads the second
+    let warmed = false
+    const warm = () => {
+      if (warmed) return
+      warmed = true
+      v0.dataset.room = '0'
+      v0.src = clipUrl(0)
+      v0.load()
+      rest(v0) // the first room waits on its last frame until Next / Previous is pressed
+      load(v1, 1)
+    }
+    if (reduced) warm()
+
+    const io = new IntersectionObserver(([e]) => { st.seen = e.isIntersecting; sync() }, { threshold: 0.25 })
+    io.observe(stage)
+    const onKey = (e) => {
+      if (!st.seen || st.iris < 1) return
+      if (e.key === 'ArrowRight') go(st.room + 1)
+      else if (e.key === 'ArrowLeft') go(st.room - 1)
+    }
+    window.addEventListener('keydown', onKey)
+
+    let pin
+    // the stage height is measured once (and on resize) – reading it on every scroll update would force a layout each frame
+    let H = stage.offsetHeight
+    const ro = new ResizeObserver(() => { H = stage.offsetHeight })
     ro.observe(stage)
-
-    /* scroll (px) → iris radius (the black hole holding the hero) and video progress */
+    let lastIris = -1
     const apply = (scroll) => {
-      const vh = stage.offsetHeight // stable (svh) – the same unit the preloader uses
-      const iris = clamp01((scroll / vh - IRIS_START) / IRIS_SCREENS)
-      // diagonal wipe: a slanted edge sweeps across and uncovers the video
-      const W = stage.offsetWidth
-      const H = stage.offsetHeight
-      clipEl.style.clipPath = wipePath(iris, W, H)
-      // the picture pushes forward while the wipe sweeps
-      canvas.style.transform = `scale(${1.2 - 0.2 * iris})`
-      // the building only starts moving once the wipe has finished
-      target = clamp01((scroll / vh - IRIS_START - IRIS_SCREENS) / SCROLL_SCREENS)
-      if (hintRef.current) hintRef.current.style.opacity = String(iris < 1 ? 0 : Math.max(0, 1 - target * 10))
-      uiRef.current?.classList.toggle('hv-ui--on', iris >= 1)
-      kick()
+      st.iris = clamp01((scroll / H - IRIS_START) / IRIS_SCREENS)
+      if (st.iris !== lastIris) {
+        lastIris = st.iris
+        const rest = (1 - easeWipe(st.iris)) * 100 // % of the screen still covered
+        panelEl.style.transform = `translate3d(0, ${-rest}%, 0)`
+        clipEl.style.transform = `translate3d(0, ${rest}%, 0)`
+        wrap.style.transform = `scale(${1.2 - 0.2 * st.iris})` // the picture pushes forward while the wipe sweeps
+        if (st.iris > 0.02) warm() // the clips only start loading once the wipe has begun
+      }
+      sync()
     }
-
     if (!reduced) {
-      clipEl.style.clipPath = wipePath(0, stage.offsetWidth, stage.offsetHeight)
-      st = ScrollTrigger.create({
-        trigger: stage,
-        pin: true,
-        pinSpacing: true,
-        anticipatePin: 1,
-        start: 'top top',
-        end: () => `+=${(IRIS_START + IRIS_SCREENS + SCROLL_SCREENS) * stage.offsetHeight}`,
+      panelEl.style.transform = 'translate3d(0, -100%, 0)'
+      clipEl.style.transform = 'translate3d(0, 100%, 0)'
+      pin = ScrollTrigger.create({
+        trigger: stage, pin: true, pinSpacing: true, anticipatePin: 1, start: 'top top',
+        end: () => `+=${(IRIS_START + IRIS_SCREENS) * H}`,
         invalidateOnRefresh: true,
         onUpdate: (self) => apply(self.scroll()),
       })
-      apply(st.scroll())
-      current = target
+      apply(pin.scroll())
     }
-
     return () => {
-      alive = false
-      cancelAnimationFrame(raf)
-      st?.kill()
+      st.token++
+      io.disconnect()
+      window.removeEventListener('keydown', onKey)
+      pin?.kill()
       ro.disconnect()
+      vids.current.forEach((v) => v && v.pause())
     }
   }, [])
+
+
+  const live = (i) => (textOn && index === i ? '' : undefined)
 
   return (
     <section
@@ -292,28 +247,50 @@ export default function Hero() {
       style={{ display: 'block', position: 'relative', height: 'auto', minHeight: 0, padding: 0, overflow: 'visible', borderBottom: 'none' }}
     >
       <style>{CSS}</style>
-      <div className="hv-stage" ref={stageRef}>
+      <div className="hv-stage hv-sans" ref={stageRef}>
+        <div className="hv-panel" data-panel>
         <div className="hv-clip" data-clip>
-        <canvas ref={canvasRef} className="hv-canvas" aria-hidden="true" />
-        <div className="hv-shade" />
-        <h1 className="hv-title">Hero</h1>
-        <div ref={uiRef} className="hv-ui hv-sans" aria-hidden="false">
-          {CHAPTERS.map((c) => (
-            <div key={c.n} className="hv-chap" data-chap>
-              <div className="num"><span>{c.n}</span><i /><span style={{ opacity: 0.6 }}>0{CHAPTERS.length}</span></div>
-              <h3>{c.title}</h3>
-              <p>{c.caption}</p>
-              {c.cta && <a className="hv-cta" href="#contact">Start a project <span aria-hidden="true">→</span></a>}
+          <h1 className="hv-title">Hero</h1>
+
+          {/* top: label + heading */}
+          <div className="hv-top">
+            <div className="hv-slot" style={{ width: '100%', height: '100%' }} aria-live="polite">
+              {ROOMS.map((r, i) => (
+                <div key={r.n} className="hv-text" data-on={live(i)} aria-hidden={live(i) === undefined}>
+                  <h2 className="hv-h">{r.title}</h2>
+                </div>
+              ))}
             </div>
-          ))}
-          <div className="hv-prog">
-            <span>Walkthrough</span>
-            <span className="track"><span className="fill" data-fill style={{ display: 'block' }} /></span>
           </div>
-        </div>
-        <div ref={hintRef} className="hv-hint">
-          <span>Scroll</span>
-          <i />
+
+          {/* middle: the video, full width, exactly 50% of the screen height */}
+          <div className="hv-band">
+            <div className="hv-vwrap" ref={wrapRef}>
+              {[0, 1].map((k) => (
+                <video key={k} ref={(el) => { vids.current[k] = el }} className="hv-vid" muted playsInline preload="none" aria-hidden="true" disablePictureInPicture />
+              ))}
+            </div>
+            {/* description: inside the video, bottom middle, over a soft dark gradient */}
+            <div className="hv-slot hv-desc" aria-live="polite">
+              {ROOMS.map((r, i) => (
+                <div key={r.n} className="hv-text" data-on={live(i)} aria-hidden={live(i) === undefined}>
+                  <p className="hv-p">{r.caption}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* bottom: controls, centred */}
+          <div className="hv-bottom">
+            <div className="hv-ctl">
+              <button type="button" className="hv-btn hv-prev" aria-label="Previous room" onClick={() => api.current.step?.(-1)}><Chevron dir="left" /></button>
+              <button type="button" className="hv-btn hv-next" data-idle={started ? undefined : ''} aria-label={`Next room: ${ROOMS[(index + 1) % N].title}`} onClick={() => api.current.step?.(1)}>
+                <span>Next</span>
+                <small>{ROOMS[(index + 1) % N].title}</small>
+                <b><Chevron dir="right" /></b>
+              </button>
+            </div>
+          </div>
         </div>
         </div>
       </div>

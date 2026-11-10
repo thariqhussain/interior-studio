@@ -29,7 +29,6 @@ export interface BeforeAfterRoom {
 
 interface BeforeAfterGalleryProps {
     rooms: BeforeAfterRoom[];
-    eyebrow?: string;
     heading?: string[];
     intro?: string;
 }
@@ -47,7 +46,6 @@ const pad = (n: number) => String(n).padStart(2, "0");
  */
 export default function BeforeAfterGallery({
     rooms,
-    eyebrow = "Before & After",
     heading = ["Every room,", "reimagined."],
     intro,
 }: BeforeAfterGalleryProps) {
@@ -77,8 +75,9 @@ export default function BeforeAfterGallery({
         return () => hint.current?.stop();
     }, [seen, reduce, pos]);
 
-    // warm the cache for the neighbouring rooms
+    // warm the cache for the neighbouring rooms – only once the card has been seen (not at page load)
     useEffect(() => {
+        if (!seen) return;
         [index - 1, index + 1].forEach((i) => {
             const r = rooms[(i + rooms.length) % rooms.length];
             if (!r) return;
@@ -86,7 +85,7 @@ export default function BeforeAfterGallery({
                 if (src) new Image().src = src;
             });
         });
-    }, [index, rooms]);
+    }, [index, rooms, seen]);
 
     const go = (to: number) => {
         const next = (to + rooms.length) % rooms.length;
@@ -139,34 +138,33 @@ export default function BeforeAfterGallery({
     };
 
     return (
-        <div className="mx-auto grid max-w-[1500px] grid-cols-[minmax(0,1fr)] gap-12 px-6 py-24 sm:px-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-center lg:gap-16 lg:px-16 lg:py-32 xl:gap-24">
-            {/* left: heading + room list */}
-            <div className="min-w-0 text-left">
-                <motion.div
-                    initial={{ opacity: 0, y: 28 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true, amount: 0.4 }}
-                    transition={{ duration: 0.9, ease: EASE }}
-                >
-                    <p className="flex items-center gap-4 text-xs font-medium uppercase tracking-[0.25em] text-white/55">
-                        <span className="h-px w-10 bg-white/40" />
-                        {eyebrow}
-                    </p>
-                    <h2 className="mt-5 text-4xl font-semibold leading-[1.04] tracking-[-0.04em] text-white sm:text-5xl xl:text-6xl">
-                        {heading.map((l) => (
-                            <span key={l} className="block">
-                                {l}
-                            </span>
-                        ))}
-                    </h2>
-                    {intro && <p className="mt-6 max-w-md text-base leading-relaxed text-white/50 sm:text-lg">{intro}</p>}
-                </motion.div>
+        <div className="mx-auto max-w-[1500px] px-6 py-24 sm:px-10 lg:px-16 lg:py-32">
+            {/* header row: heading on the left, the intro text on the right, level with each other */}
+            <motion.div
+                initial={{ opacity: 0, y: 28 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.4 }}
+                transition={{ duration: 0.9, ease: EASE }}
+                className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-16"
+            >
+                <h2 className="text-4xl font-semibold leading-[1.04] tracking-[-0.04em] text-white sm:text-5xl xl:text-6xl">
+                    {heading.map((l) => (
+                        <span key={l} className="block">
+                            {l}
+                        </span>
+                    ))}
+                </h2>
+                {intro && <p className="max-w-md text-base leading-relaxed text-white/50 sm:text-lg lg:text-right">{intro}</p>}
+            </motion.div>
 
+            {/* the room list and the comparison card start on the same line */}
+            <div className="mt-10 grid grid-cols-[minmax(0,1fr)] gap-10 lg:mt-14 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start lg:gap-16 xl:gap-24">
+            <div className="min-w-0 text-left">
                 <div
                     role="tablist"
                     aria-label="Rooms"
                     aria-orientation="vertical"
-                    className="-mx-6 mt-10 flex snap-x scroll-px-6 gap-2 overflow-x-auto px-6 pb-2 [scrollbar-width:none] sm:-mx-10 sm:scroll-px-10 sm:px-10 lg:mx-0 lg:mt-12 lg:flex-col lg:gap-0 lg:overflow-visible lg:px-0 lg:pb-0 [&::-webkit-scrollbar]:hidden"
+                    className="-mx-6 flex snap-x scroll-px-6 gap-2 overflow-x-auto px-6 pb-2 [scrollbar-width:none] sm:-mx-10 sm:scroll-px-10 sm:px-10 lg:mx-0 lg:flex-col lg:gap-0 lg:overflow-visible lg:px-0 lg:pb-0 [&::-webkit-scrollbar]:hidden"
                 >
                     {rooms.map((r, i) => {
                         const active = i === index;
@@ -184,7 +182,7 @@ export default function BeforeAfterGallery({
                                 tabIndex={active ? 0 : -1}
                                 onClick={() => go(i)}
                                 onKeyDown={onTabKey}
-                                className={`group relative flex shrink-0 snap-start items-baseline gap-3 whitespace-nowrap rounded-full border px-4 py-2 text-left outline-none transition-colors duration-300 focus-visible:ring-2 focus-visible:ring-white/60 lg:w-full lg:gap-5 lg:rounded-none lg:border-0 lg:border-b lg:px-0 lg:py-4 lg:focus-visible:ring-offset-0 ${
+                                className={`group relative flex shrink-0 snap-start ${i === 0 ? "lg:pt-0" : ""} items-baseline gap-3 whitespace-nowrap rounded-full border px-4 py-2 text-left outline-none transition-colors duration-300 focus-visible:ring-2 focus-visible:ring-white/60 lg:w-full lg:gap-5 lg:rounded-none lg:border-0 lg:border-b lg:px-0 lg:py-4 lg:focus-visible:ring-offset-0 ${
                                     active ? "border-white bg-white text-black lg:bg-transparent lg:text-white" : "border-white/15 text-white/55 hover:text-white lg:border-white/10 lg:text-white/35"
                                 }`}
                             >
@@ -239,9 +237,11 @@ export default function BeforeAfterGallery({
                             transition={{ duration: reduce ? 0 : 0.7, ease: EASE }}
                             className="absolute inset-0"
                         >
-                            <img src={room.after} alt={room.alt ?? `${room.name}, after`} draggable={false} className="absolute inset-0 size-full object-cover" />
+                            <img loading="lazy" decoding="async" src={room.after} alt={room.alt ?? `${room.name}, after`} draggable={false} className="absolute inset-0 size-full object-cover" />
                             <motion.div className="absolute inset-0" style={{ clipPath: clip }}>
                                 <img
+                                    loading="lazy"
+                                    decoding="async"
                                     src={room.before ?? room.after}
                                     alt={room.alt ? `${room.alt} (before)` : `${room.name}, before`}
                                     draggable={false}
@@ -325,6 +325,7 @@ export default function BeforeAfterGallery({
                     </div>
                 </div>
             </motion.div>
+            </div>
         </div>
     );
 }

@@ -11,7 +11,7 @@ export default function Preloader() {
   return (
     <section id="preloader" ref={ref} style={{ height: '280svh' }}>
       <div className="sticky top-0 h-[100svh] overflow-hidden">
-        <ParallaxComponent triggerRef={ref} title="YEAH  IT'S  ME" travel={0.9} />
+        <ParallaxComponent triggerRef={ref} title="YEAH" script="it's me" travel={0.9} />
       </div>
     </section>
   )

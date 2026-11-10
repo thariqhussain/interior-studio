@@ -330,7 +330,7 @@ const BadgeFaces = React.memo(function BadgeFaces({ item, tone }: { item: Lanyar
         <span className="relative mt-[2.05em] block size-[5.3em] shrink-0 rounded-full bg-card p-[0.2em]" style={{ boxShadow: "0 0.15em 0.5em color-mix(in oklab, var(--color-foreground) 22%, transparent)" }}>
           <span className="relative block size-full overflow-hidden rounded-full bg-muted">
             <Silhouette />
-            {!failed && <img src={item.image} alt="" draggable={false} decoding="async" onError={() => setFailed(true)} className="pointer-events-none absolute inset-0 block size-full select-none object-cover" />}
+            {!failed && <img src={item.image} alt="" draggable={false} loading="lazy" decoding="async" onError={() => setFailed(true)} className="pointer-events-none absolute inset-0 block size-full select-none object-cover" />}
           </span>
         </span>
         <span className="mt-[0.55em] block w-full truncate text-center text-[1.08em] font-semibold leading-tight tracking-tight">{item.name}</span>

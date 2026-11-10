@@ -1,42 +1,36 @@
-import { useSmoothScroll } from './lib/useSmoothScroll.js'
-import Preloader from './sections/Preloader.jsx'
-import Hero from './sections/Hero.jsx'
-import Manifesto from './sections/Manifesto.jsx'
-import FeaturedProjects from './sections/FeaturedProjects.jsx'
-import Process from './sections/Process.jsx'
-import BeforeAfter from './sections/BeforeAfter.jsx'
-import Services from './sections/Services.jsx'
-import Numbers from './sections/Numbers.jsx'
-import Testimonials from './sections/Testimonials.jsx'
-import Team from './sections/Team.jsx'
-import FAQ from './sections/FAQ.jsx'
-import Contact from './sections/Contact.jsx'
-import Footer from './sections/Footer.jsx'
-import ScrollReveal from './components/ui/scroll-reveal'
+import { Suspense, lazy, useEffect, useState } from 'react'
+import ConstructionPage from './components/ConstructionPage.jsx'
+
+/* The whole site lives in Site.jsx. It is loaded lazily, so phones and tablets that get the construction page below
+   never download or start any of it (videos, smooth scroll, 3D, …). */
+const Site = lazy(() => import('./Site.jsx'))
+
+// Set to false to open the site on every device again.
+const DESKTOP_ONLY = true
+// "phone or tablet": a narrow window, or a touch screen up to a large tablet (iPad Pro landscape is 1366px wide)
+const SMALL_SCREEN = '(max-width: 1099px), (pointer: coarse) and (max-width: 1399px)'
+
+// start fetching the site's code immediately (in parallel with React starting up) when this is a desktop – lazy() then finds it already loaded
+if (typeof window !== 'undefined' && DESKTOP_ONLY && !window.matchMedia(SMALL_SCREEN).matches) import('./Site.jsx')
+
+function useSmallScreen() {
+  const [small, setSmall] = useState(() => (typeof window !== 'undefined' ? window.matchMedia(SMALL_SCREEN).matches : false))
+  useEffect(() => {
+    const mq = window.matchMedia(SMALL_SCREEN)
+    const update = () => setSmall(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+  return small
+}
 
 export default function App() {
-  useSmoothScroll()
+  const small = useSmallScreen()
+  if (DESKTOP_ONLY && small) return <ConstructionPage />
   return (
-    <main>
-      {/* Hero overlaps the preloader (negative margin = preloader height) so it can
-          be revealed inside the expanding circular hole. */}
-      <Preloader />
-      <div style={{ marginTop: '-280svh' }}>
-        <Hero />
-      </div>
-      <Manifesto />
-      <FeaturedProjects />
-      <Process />
-      <BeforeAfter />
-      <Services />
-      <Numbers />
-      <Testimonials />
-      <Team />
-      <FAQ />
-      {/* Contact opens up like doors while the footer appears behind it */}
-      <ScrollReveal behind={<Footer />}>
-        <Contact />
-      </ScrollReveal>
-    </main>
+    <Suspense fallback={null}>
+      <Site />
+    </Suspense>
   )
 }

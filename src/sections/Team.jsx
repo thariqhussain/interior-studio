@@ -1,3 +1,5 @@
+import { useRef } from 'react'
+import { useInView } from 'framer-motion'
 import TeamLanyardRail from '@/components/ui/team-lanyard-rail'
 
 /* The studio team as lanyard badges: brush along the rail to meet someone, pull a badge, click to flip it.
@@ -97,12 +99,14 @@ const TEAM = [
 ]
 
 export default function Team() {
+  const ref = useRef(null)
+  const inView = useInView(ref, { margin: '0px' }) // the auto-flip timers and physics only run while the section is on screen
   return (
     // "dark" + "team-theme": dark stage with warm paper badges (tokens live in index.css)
-    <section id="team" className="dark team-theme flex min-h-[90svh] items-center bg-[#0a0a09]">
+    <section id="team" ref={ref} className="dark team-theme flex min-h-[90svh] items-center bg-[#0a0a09]">
       <TeamLanyardRail
         items={TEAM}
-        autoplay
+        autoplay={inView}
         className="py-8 md:py-10"
         eyebrow="Meet the team · Eight people"
         heading="The people behind every room."

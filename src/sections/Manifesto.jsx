@@ -1,208 +1,71 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { motion, easeInOut, useMotionValue, useMotionValueEvent, useReducedMotion, useScroll, useSpring, useTransform } from 'framer-motion'
+import { useEffect, useRef, useState } from 'react'
+import { motion, easeInOut, easeOut, useInView, useMotionValue, useMotionValueEvent, useReducedMotion, useScroll, useSpring, useTransform } from 'framer-motion'
 import { ChevronDown } from 'lucide-react'
 import { DISPLAY_FONT } from '@/lib/projects'
-import BACKGROUND_IMAGES from 'virtual:manifesto-images'
+import PerspectiveTunnelStage, { TunnelStats } from '@/components/ui/perspective-tunnel-stage'
+import GlyphZoom from '@/components/ui/glyph-zoom'
+import { scrollToTarget } from '@/lib/useSmoothScroll'
 
 /* =====================================================================
-   Manifesto section – ELENA VOSS hero → "shrink onto a floating wall of landscape cards"
-   Phase 1  the hero sits in a small frame that expands to (almost) full screen.
-   Phase 2  the hero card shrinks to the middle of the screen while a blurred,
-            oversized wall of floating landscape cards behind it settles into focus;
-            the page nav fades in on top.
+   Manifesto section – one pinned stage, four beats (all driven by the same scroll progress):
+   1. the "studio in numbers" scene plays first: photos fly past in a 3D tunnel, then the stats count up
+   2. "BUILT WITH SCALE" appears. Its letters are windows onto the ELENA VOSS screen
+   3. the camera zooms into one letter (components/ui/glyph-zoom) until the letter fills the screen: that is the ELENA VOSS
+      screen. Its content then builds up in stages (headline lines, model, labels). The stats stay along the bottom, IN FRONT
+      of it, and remain on it
+   4. the screen rests for a beat while the next section (FeaturedProjects) rises over it – its dome-shaped top edge pushes
+      the stats up and bends them along its curve
    Pinned with a sticky stage; progress comes from framer-motion's useScroll.
    ===================================================================== */
 
-const WALL_OPACITY = 0.5
-const CAROUSEL_START = 0.85 // the wall only drifts once the card has shrunk this far (0 → 1); paused before that
+/* ---------- Elena Voss screen: warm amber studio look (colours sampled from the reference design) ----------
+   Edges are a deep burnt orange (#893c02 … #803e03), a big bright amber glow sits left of the head (#f58937 … #f7b055), the right side
+   and the bottom fall off into dark brown (#4d2401). All of it is static gradients: no blur, no filters. */
+const EL_FONT = 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
+const GIANT_WORD = 'INTERIORS' // the huge pale word behind the model (swap for any word or a name)
+const PLATE =
+  'radial-gradient(46% 54% at 29% 63%, #f7913c 0%, rgba(247,145,60,.88) 20%, rgba(226,112,30,.5) 50%, transparent 78%),' +
+  'radial-gradient(34% 40% at 54% 40%, rgba(240,150,60,.42), transparent 72%),' + // soft light behind the head
+  'linear-gradient(270deg, rgba(55,22,2,.55) 0%, transparent 38%),' + // the right side falls away
+  'linear-gradient(0deg, rgba(28,11,1,.85) 0%, rgba(60,26,3,.5) 14%, transparent 34%),' + // dark floor under the shoulders
+  'linear-gradient(180deg, #8f3f03 0%, #b04e06 36%, #a84b06 62%, #6a3003 100%)'
+const NAV = [
+  { label: 'Work', to: '#projects' },
+  { label: 'Services', to: '#services' },
+  { label: 'About', to: '#team' },
+  { label: 'Contact', to: '#contact' },
+]
+const AVATARS = ['#e9b077', '#c97b3a', '#8f4a1a']
+
 const MODEL_SRC = '/male_model.png' // background removed from male_model.jpeg
-// Pinned scroll budget (svh). The stage stays pinned for ANIM + HOLD + RISE:
-//   ANIM  – the manifesto's own animation (frame expands → card shrinks onto the wall)
-//   HOLD  – the finished wall keeps drifting for a beat before anything covers it
-//   RISE  – FeaturedProjects rises over the stage with its arch (its marginTop must equal -RISE_SVH)
-const ANIM_SVH = 210
-const HOLD_SVH = 40
-const RISE_SVH = 100
-const PIN_SVH = ANIM_SVH + HOLD_SVH + RISE_SVH
-const WALL_STOP_RAW = (ANIM_SVH + HOLD_SVH) / PIN_SVH // raw scroll progress where the next section starts covering the wall → pause it
-const lerp = (a, b, t) => a + (b - a) * t
-const clamp01 = (v) => Math.min(1, Math.max(0, v))
 
-/* ---------- background: floating landscape cards, tilted in 3D, drifting diagonally ----------
-   • one tile of COLS × ROWS cards is repeated 3× in both directions; the whole grid translates by exactly
-     one tile (-33.333%) so the loop is seamless
-   • PERF: the grid sits on ONE plane tilted in 3D under a CSS perspective; the plane is flattened
-     (no preserve-3d), so the browser composites it as a single texture. Cards only get cheap 2D
-     transforms (small rotate + scale for "depth"), no shadows, no blend modes, no per-card animation
-   • no extra dependencies – pure CSS + one keyframe animation, paused by the same `running` flag
-   • images come from the virtual:manifesto-images folder; until it has photos, vibrant generated
-     landscape illustrations are used instead
-   ------------------------------------------------------------------------------------------ */
-
-const COLS = 3 // cards per tile (horizontal)  – raise (and add palettes/photos) for more variety
-const ROWS = 3 // cards per tile (vertical)
-const REPEAT = 3 // tile repeats in each direction (3 = seamless loop + enough overscan)
-const CELL_W = 32 // layout units: 1u = 1cqw (or .5625cqh on tall/portrait screens)
-const CELL_H = 38
-const CARD_W = 27
-const CARD_H = 34
-const DRIFT_SECONDS = 75 // time to travel one tile – bigger = calmer
-const PLANE_TILT = 'rotateX(24deg) rotateY(-16deg) rotateZ(-10deg) scale(1.15)'
-
-const u = (n) => `calc(var(--u) * ${n})`
-
-const WALL_CSS = `
-@keyframes mf-drift { from { transform: translate3d(0,0,0) } to { transform: translate3d(-33.3333%, -33.3333%, 0) } }
-@media (prefers-reduced-motion: reduce) { .mf-drift { animation: none !important } }
-`
-
-// subtle texture: fine film grain + a faint dot grid
-const GRAIN = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")`
-
-/* ---------- generated landscape illustrations (used until real photos are dropped in) ---------- */
-
-const PALETTES = [
-  { name: 'sunset',  sky: ['#2b1055', '#d4418e', '#ff9a3c'], sun: ['#fff3b0', 0.68, 0.52], ridges: ['#7b2d8e', '#4a1a6b', '#1d0b35'] },
-  { name: 'alpine',  sky: ['#0f4c81', '#4aa3df', '#bfe9ff'], sun: ['#ffffff', 0.25, 0.3],  ridges: ['#7aa2c8', '#3e6a96', '#183a5c'] },
-  { name: 'forest',  sky: ['#0b3d2e', '#2e8b57', '#c9f2a5'], sun: ['#fff7b8', 0.78, 0.4],  ridges: ['#2f8f5b', '#146c43', '#073b27'] },
-  { name: 'desert',  sky: ['#7a1f1f', '#e8643a', '#ffd27a'], sun: ['#fff1c9', 0.4, 0.55],  ridges: ['#c2542d', '#8f3a1f', '#4a1c10'] },
-  { name: 'aurora',  sky: ['#04122e', '#0f7a6d', '#7dffb3'], sun: ['#d9fff0', 0.2, 0.2],   ridges: ['#16425b', '#0c2a40', '#050f1c'] },
-  { name: 'ocean',   sky: ['#021b4d', '#0a74da', '#7de3ff'], sun: ['#ffffff', 0.7, 0.35],  ridges: ['#1b8fc4', '#0e5a8f', '#062c4d'] },
-  { name: 'lavender',sky: ['#3a1c71', '#8e6bd9', '#ffc3e8'], sun: ['#fff0fa', 0.3, 0.45],  ridges: ['#9a6fd0', '#6a45a6', '#33205e'] },
-  { name: 'autumn',  sky: ['#4a1d0a', '#e07a1f', '#ffe08a'], sun: ['#fffbe0', 0.62, 0.48], ridges: ['#c8601a', '#8a3d10', '#40200a'] },
-  { name: 'tropics', sky: ['#00525c', '#19c3a5', '#fff59a'], sun: ['#ffffff', 0.5, 0.5],   ridges: ['#13a589', '#0a7a68', '#04423a'] },
+// "Studio in numbers" figures – placeholders, replace with the studio's real numbers
+const STATS = [
+  { value: 12, suffix: '+', label: 'Years of practice' },
+  { value: 240, suffix: '+', label: 'Projects delivered' },
+  { value: 85, suffix: 'k', label: 'Sq. ft. designed' },
+  { value: 98, suffix: '%', label: 'Happy clients' },
 ]
 
-function rng(seed) {
-  let a = seed >>> 0
-  return () => {
-    a = (a + 0x6d2b79f5) | 0
-    let t = Math.imul(a ^ (a >>> 15), 1 | a)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
-function ridgePath(rand, base, amp, steps) {
-  const dx = 300 / steps
-  let d = `M0 380 L0 ${base}`
-  for (let i = 1; i <= steps; i++) {
-    const peak = i % 2 ? 0.45 + rand() * 0.55 : rand() * 0.25
-    d += ` L${(i * dx).toFixed(1)} ${(base - peak * amp).toFixed(1)}`
-  }
-  return `${d} L300 380 Z`
-}
-
-function landscapeSrc(p, seed) {
-  const rand = rng(seed * 977 + 13)
-  const [sunColor, sx, sy] = p.sun
-  const svg =
-    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 380' preserveAspectRatio='xMidYMid slice'>` +
-    `<defs><linearGradient id='s' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='${p.sky[0]}'/><stop offset='.55' stop-color='${p.sky[1]}'/><stop offset='1' stop-color='${p.sky[2]}'/></linearGradient>` +
-    `<radialGradient id='g'><stop offset='0' stop-color='${sunColor}' stop-opacity='.95'/><stop offset='.35' stop-color='${sunColor}' stop-opacity='.35'/><stop offset='1' stop-color='${sunColor}' stop-opacity='0'/></radialGradient></defs>` +
-    `<rect width='300' height='380' fill='url(%23s)'/>` +
-    `<circle cx='${sx * 300}' cy='${sy * 380}' r='110' fill='url(%23g)'/>` +
-    `<circle cx='${sx * 300}' cy='${sy * 380}' r='20' fill='${sunColor}'/>` +
-    `<path d='${ridgePath(rand, 250, 120, 9)}' fill='${p.ridges[0]}'/>` +
-    `<path d='${ridgePath(rand, 292, 100, 8)}' fill='${p.ridges[1]}'/>` +
-    `<path d='${ridgePath(rand, 335, 70, 7)}' fill='${p.ridges[2]}'/>` +
-    `</svg>`
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg).replace(/%2523/g, '%23')}`
-}
-
-const LANDSCAPE_SRCS = PALETTES.map((p, i) => landscapeSrc(p, i + 1))
-
-/* ---------- the wall ---------- */
-
-function Wall({ running }) {
-  const sources = BACKGROUND_IMAGES.length ? BACKGROUND_IMAGES : LANDSCAPE_SRCS
-
-  // one tile of card descriptors – reused for every repeat, so the loop stays seamless
-  const tile = useMemo(() => {
-    const rand = rng(7)
-    const span = (n) => (rand() - 0.5) * 2 * n
-    return Array.from({ length: COLS * ROWS }, (_, i) => ({
-      src: sources[i % sources.length],
-      rz: span(4),
-      depth: span(0.09), // scale ±9% → cheap fake depth
-      stagger: i % COLS === 1, // middle column sits half a card lower → brick-like, floating layout
-    }))
-  }, [sources])
-
-  // warm up: decode every image once, off the main thread, before the wall first becomes visible
-  useEffect(() => {
-    sources.forEach((src) => {
-      const img = new Image()
-      img.src = src
-      img.decode?.().catch(() => {})
-    })
-  }, [sources])
-
-  const state = running ? 'running' : 'paused'
-  const cells = []
-  for (let r = 0; r < ROWS * REPEAT; r++) {
-    for (let c = 0; c < COLS * REPEAT; c++) {
-      const t = tile[(r % ROWS) * COLS + (c % COLS)]
-      cells.push(
-        <div
-          key={`${r}-${c}`}
-          className="grid place-items-center"
-          style={{
-            width: u(CELL_W),
-            height: u(CELL_H),
-            transform: t.stagger ? `translateY(${u(CELL_H / 2)})` : undefined,
-          }}
-        >
-          <div
-            className="relative overflow-hidden"
-            style={{
-              width: u(CARD_W),
-              height: u(CARD_H),
-              borderRadius: u(2.4),
-              transform: `rotate(${t.rz}deg) scale(${1 + t.depth})`,
-              boxShadow: '0 0 0 1px rgba(255,255,255,.08)', // hairline only – blurred shadows are expensive ×81
-              background: '#111',
-            }}
-          >
-            <img src={t.src} alt="" draggable={false} decoding="async" className="h-full w-full select-none object-cover" />
-          </div>
-        </div>,
-      )
-    }
-  }
-
-  return (
-    <div className="absolute inset-0 overflow-hidden" style={{ '--u': 'max(1cqw, 0.5625cqh)', contain: 'paint', isolation: 'isolate' }}>
-      <style>{WALL_CSS}</style>
-
-      {/* deep dark base + subtle texture */}
-      <div className="absolute inset-0" style={{ background: 'radial-gradient(120% 90% at 50% 40%, #15151a 0%, #0b0b0c 70%)' }} />
-      <div className="absolute inset-0 opacity-[.05]" style={{ backgroundImage: GRAIN, backgroundSize: '160px 160px' }} />
-      <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,.08) 1px, transparent 1.2px)', backgroundSize: '22px 22px' }} />
-
-      {/* 3D plane: perspective on the parent, tilt on the plane, diagonal drift on the grid */}
-      <div className="absolute inset-0" style={{ perspective: u(100), perspectiveOrigin: '50% 50%' }}>
-        <div className="absolute inset-0" style={{ transformStyle: 'flat', transform: PLANE_TILT }}>
-          <div
-            className="mf-drift absolute grid will-change-transform"
-            style={{
-              left: `calc(50% - ${u(CELL_W * COLS)})`,
-              top: `calc(50% - ${u(CELL_H * ROWS)})`,
-              gridTemplateColumns: `repeat(${COLS * REPEAT}, ${u(CELL_W)})`,
-              animation: `mf-drift ${DRIFT_SECONDS}s linear infinite`,
-              animationPlayState: state,
-            }}
-          >
-            {cells}
-          </div>
-        </div>
-      </div>
-
-      {/* vignette – keeps the edges deep dark so the hero card stays the focus */}
-      <div className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(75% 70% at 50% 50%, transparent 35%, rgba(11,11,12,.85) 100%)' }} />
-    </div>
-  )
-}
+// Pinned scroll budget (svh). The stage stays pinned for the sum of these:
+const NUMBERS_SVH = 150 // the numbers scene plays (tunnel → stats)
+const TITLE_SVH = 60 // after the numbers scene: the word's intro finishes and holds, ready for the zoom
+const WORD_AT = 0.85 // "BUILT WITH SCALE" starts to appear when the numbers scene is 85% through, while it is finishing
+const ZOOM_SVH = 210 // the camera flies into a letter (long and slow, so the zoom feels subtle)
+const BUILD_AT = 0.85 // share of the zoom after which the screen's content starts to build (the zoom's last stretch is empty)
+const BUILD_SVH = 55 // the Elena Voss screen's content builds up piece by piece
+const HOLD_SVH = 45 // the full screen rests for a beat
+const RISE_SVH = 100 // FeaturedProjects rises over the stage (its marginTop must equal -RISE_SVH)
+const PIN_SVH = NUMBERS_SVH + TITLE_SVH + ZOOM_SVH * BUILD_AT + BUILD_SVH + HOLD_SVH + RISE_SVH
+const at = (svh) => svh / PIN_SVH // scroll progress (0 → 1) at a given point of the pin
+const NUMBERS_END = at(NUMBERS_SVH)
+const TITLE_END = at(NUMBERS_SVH + TITLE_SVH)
+const WORD_START = NUMBERS_SVH * WORD_AT // (svh)
+const ZOOM_END = at(NUMBERS_SVH + TITLE_SVH + ZOOM_SVH)
+const BUILD_START = at(NUMBERS_SVH + TITLE_SVH + ZOOM_SVH * BUILD_AT)
+const BUILD_END = at(NUMBERS_SVH + TITLE_SVH + ZOOM_SVH * BUILD_AT + BUILD_SVH)
+const RISE_START = at(NUMBERS_SVH + TITLE_SVH + ZOOM_SVH * BUILD_AT + BUILD_SVH + HOLD_SVH) // when FeaturedProjects starts to rise
+const STATS_BOTTOM_SVH = 91 // bottom of the stats row, in svh from the top of the screen (just under the labels)
 
 /* ---------- section ---------- */
 
@@ -210,49 +73,40 @@ export default function Manifesto() {
   const ref = useRef(null)
   const reduced = useReducedMotion()
   const { scrollYProgress: rawProgress } = useScroll({ target: ref, offset: ['start start', 'end end'] })
-  // re-mapped so every timing below stays exactly as before; stays at 1 (wall paused) while the next section rises over it
-  const scrollYProgress = useTransform(rawProgress, [0, ANIM_SVH / PIN_SVH], [0, 1])
 
-  const INTRO = 0.3 // 0 → INTRO: frame expands · INTRO → 1: card shrinks onto the wall
-  const open = useTransform(scrollYProgress, [0, INTRO], reduced ? [1, 1] : [0, 1], { ease: easeInOut })
-  const p = useTransform(scrollYProgress, [INTRO, 1], [0, 1], { clamp: true })
-  const shrink = useTransform(p, [0, 0.72], reduced ? [1, 1] : [0, 1], { ease: easeInOut })
+  // the numbers scene is only mounted while it can be seen: armed when the section is about to scroll in, switched off
+  // again once "BUILT WITH SCALE" has replaced it (and back on if the visitor scrolls back up)
+  const armed = useInView(ref, { once: true, margin: '0px 0px 150% 0px' })
+  const live = useInView(ref) // true only while the section is on screen
+  const [numbersOn, setNumbersOn] = useState(true)
+  useMotionValueEvent(rawProgress, 'change', (v) => setNumbersOn(v < TITLE_END + 0.02))
+  // mounted once (when first about to be seen) and then only hidden with display:none – scrolling back up never rebuilds the 3D scene
+  const showNumbers = armed && !reduced
 
-  // the card wall only drifts while the card is (almost) fully shrunk and the stage is still pinned – paused otherwise to keep scrolling smooth
-  const [wallRunning, setWallRunning] = useState(false)
-  const syncWall = () => setWallRunning(shrink.get() >= CAROUSEL_START && rawProgress.get() < WALL_STOP_RAW)
-  useMotionValueEvent(shrink, 'change', syncWall)
-  useMotionValueEvent(rawProgress, 'change', syncWall)
-  useEffect(() => { syncWall() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // beat 4 – FeaturedProjects rises over the stage; its top line reaches the stats and pushes them up, so they stay just
+  // above the line instead of being covered. The line's height (svh from the top of the screen) is linear in the scroll
+  // because the stage is pinned and the next section is pulled up by exactly RISE_SVH.
+  const edge = useTransform(rawProgress, (r) => 100 * (1 - Math.min(1, Math.max(0, (r - RISE_START) / (1 - RISE_START)))))
 
-  // card size as % of the stage (same aspect as the screen): 42 → 90 → 50
-  const size = useTransform([open, shrink], ([o, s]) => lerp(lerp(42, 90, o), 50, s))
-  // the card is laid out ONCE at full size and only ever scaled (transform = no layout / repaint per frame)
-  const contentScale = useTransform(size, (v) => v / 100)
-  const cardRadius = useTransform(open, (v) => lerp(28, 14, v))
-  const plateRadius = useTransform([cardRadius, contentScale], ([r, sc]) => r / sc) // keeps the visual radius constant under scale
-
-  const frameHint = useTransform(open, [0, 0.25], [1, 0])
-  // intro: the small card is softly blurred under the "BUILT WITH SCALE" title; as the card
-  // comes closer the card sharpens while the title splits apart and exits left / right
-  const cardBlur = useTransform(open, [0, 0.75], [9, 0])
-  const cardBlurFilter = useTransform([cardBlur, contentScale], ([b, sc]) => (b > 0.05 ? `blur(${b / sc}px)` : 'none'))
-  // title splits down the middle: the left half slides off to the left, the right half to the right
-  const splitLeft = useTransform(open, [0, 0.6], ['0%', '-60%'])
-  const splitRight = useTransform(open, [0, 0.6], ['0%', '60%'])
-  const splitOpacity = useTransform(open, [0.5, 0.6], [1, 0]) // already off-screen by then – just un-paints it
-  // orange light seam: each half travels 60% of the stage width, so the gap between the cut edges is 1.2 × the stage width at
-  // full split. The glow body is a stage-wide bar scaled on X (compositor-only), so its edges always sit on the two cut edges.
-  const seamGap = useTransform(open, [0, 0.6], [0, 1.2])
-  // lights up the moment the title starts to open, stays while the gap widens, and is gone with the title
-  const seamOpacity = useTransform(open, [0, 0.05, 0.4, 0.58], [0, 1, 1, 0])
-  const cardNav = useTransform(shrink, [0, 0.25], [1, 0])
-  // wall visibility (fade-in, then dimmed to WALL_OPACITY) is done by one flat black veil on top – animating opacity or
-  // blur on the whole 80-card subtree would force it to be re-composited / re-rendered every scroll frame
-  const veil = useTransform([open, shrink], ([o, sh]) => 1 - WALL_OPACITY * clamp01((o - 0.55) / 0.45) * lerp(0.45, 1, clamp01(sh / 0.8)))
-  const wallScale = useTransform(shrink, [0, 1], reduced ? [1, 1] : [1.5, 1])
-  const pageNav = useTransform(p, [0.5, 0.78], [0, 1])
-  const cue = useTransform(p, [0.74, 0.9], [0, 1])
+  // beat 1 – the numbers scene (its own progress drives the tunnel and the stats)
+  const tunnel = useTransform(rawProgress, [0, NUMBERS_END], [0, 1], { clamp: true })
+  // beat 2 – the numbers scene gives way to the word, whose letters are filled with the Elena screen
+  const numbersOpacity = useTransform(rawProgress, [at(WORD_START + 6), at(NUMBERS_SVH + 12)], [1, 0])
+  const wordIn = useTransform(rawProgress, [at(WORD_START), at(WORD_START + 14)], [0, 1]) // the layer itself fades in quickly…
+  const intro = useTransform(rawProgress, [at(WORD_START + 8), at(NUMBERS_SVH + 32)], [0, 1], { clamp: true }) // …while the letters rise and the light sweeps
+  // beat 3 – the camera zooms into a letter
+  const zoom = useTransform(rawProgress, [TITLE_END, ZOOM_END], [0, 1], { clamp: true })
+  // …and the content of the screen builds: 0 → 1 over the build stretch
+  const open = useTransform(rawProgress, [BUILD_START, BUILD_END], reduced ? [1, 1] : [0, 1], { ease: easeInOut })
+  // staged content: each piece has its own window, so the screen feels built rather than faded in
+  const lineY1 = useTransform(open, [0.15, 0.45], ['112%', '0%'], { ease: easeOut })
+  const lineY2 = useTransform(open, [0.23, 0.53], ['112%', '0%'], { ease: easeOut })
+  const lineY3 = useTransform(open, [0.31, 0.61], ['112%', '0%'], { ease: easeOut })
+  const modelRise = useTransform(open, [0.2, 0.7], ['14%', '0%'], { ease: easeOut })
+  const modelFade = useTransform(open, [0.2, 0.5], [0, 1])
+  const detailsFade = useTransform(open, [0.6, 0.85], [0, 1]) // side labels, in-card nav
+  // "Selected work" cue appears once the screen is complete
+  const cue = useTransform(open, [0.9, 1], [0, 1])
 
   // mouse-move tilt + parallax (-0.5 … 0.5, smoothed)
   const mx = useMotionValue(0)
@@ -260,7 +114,7 @@ export default function Manifesto() {
   const sx = useSpring(mx, { stiffness: 90, damping: 20, mass: 0.6 })
   const sy = useSpring(my, { stiffness: 90, damping: 20, mass: 0.6 })
   useEffect(() => {
-    if (reduced) return
+    if (reduced || !live) return // no mouse tracking (and no spring updates) while the section is off screen
     const move = (e) => {
       mx.set(e.clientX / window.innerWidth - 0.5)
       my.set(e.clientY / window.innerHeight - 0.5)
@@ -272,7 +126,7 @@ export default function Manifesto() {
       window.removeEventListener('mousemove', move)
       document.removeEventListener('mouseleave', leave)
     }
-  }, [mx, my, reduced])
+  }, [mx, my, reduced, live])
   // only the text and the model react to the mouse (the card and the background stay still)
   const textRotY = useTransform(sx, (v) => v * 4)
   const textRotX = useTransform(sy, (v) => v * -3)
@@ -285,212 +139,214 @@ export default function Manifesto() {
   const modelX = useTransform(sx, (v) => v * 30)
   const modelY = useTransform(sy, (v) => v * 12)
 
-  const pill = 'text-[clamp(.8rem,1.15cqw,1.2rem)]'
-  const logoStyle = { fontSize: 'clamp(1.05rem, 1.95cqw, 2.4rem)' }
-  const Logo = () => (
-    <span className="whitespace-nowrap tracking-[-0.01em]" style={logoStyle}>
-      ELENA<span style={{ opacity: 0.6 }}>VOSS</span>
-    </span>
-  )
+  const go = (to) => (e) => { e.preventDefault(); scrollToTarget(to) }
+  const bodyText = { fontSize: 'clamp(.68rem, .88cqw, 1rem)', lineHeight: 1.55 }
 
-  return (
-    <section id="manifesto" ref={ref} style={{ height: `${PIN_SVH + 100}svh`, position: 'relative', background: '#0b0b0c' }}>
-      <div
-        className="sticky top-0 h-[100svh] w-full overflow-hidden text-white"
-        style={{ background: '#0b0b0c', fontFamily: DISPLAY_FONT, containerType: 'size' }}
-      >
-        {/* floating card wall: oversized + veiled at first, settles into view */}
-        <motion.div style={{ scale: wallScale }} className="absolute inset-0 will-change-transform">
-          <Wall running={wallRunning} />
-        </motion.div>
-        <motion.div aria-hidden="true" style={{ opacity: veil, background: '#0b0b0c' }} className="pointer-events-none absolute inset-0" />
+  const card = (
+    <div className="absolute inset-0" style={{ fontFamily: EL_FONT }}>
+      {/* the amber studio plate */}
+      <div className="absolute inset-0 overflow-hidden" style={{ background: PLATE }} />
 
-        {/* hero card – static plate; the text and the model float above it and follow the mouse */}
-        <motion.div
-          className="absolute inset-0 z-10"
-          style={{ scale: contentScale, filter: cardBlurFilter, willChange: 'transform' }}
+      {/* giant pale word, behind the model: thin letters, white at the top fading out downwards */}
+      <motion.div aria-hidden="true" style={{ opacity: modelFade }} className="pointer-events-none absolute inset-0 flex justify-center">
+        <span
+          className="absolute select-none whitespace-nowrap"
+          style={{
+            top: '41%',
+            fontSize: '17.4cqw',
+            fontWeight: 200,
+            lineHeight: 1,
+            letterSpacing: '0.03em',
+            background: 'linear-gradient(180deg, rgba(255,255,255,.96) 18%, rgba(255,255,255,.3) 88%)',
+            WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
+            color: 'transparent',
+          }}
         >
-          {/* back plate */}
-          <motion.div
-            className="absolute inset-0 overflow-hidden"
-            style={{
-              borderRadius: plateRadius,
-              background:
-                'radial-gradient(55% 45% at 6% 82%, rgba(255,140,60,.75), transparent 70%), radial-gradient(60% 50% at 95% 6%, rgba(255,120,50,.6), transparent 70%), linear-gradient(180deg, #c8431f 0%, #a52716 48%, #3d0f08 100%)',
-              boxShadow: '0 40px 120px -30px rgba(0,0,0,.7)',
-            }}
-          />
+          {GIANT_WORD}
+        </span>
+      </motion.div>
 
-          {/* text layer (mid depth) – laid out at full screen size, scaled to fit the card */}
-          <motion.div className="pointer-events-none absolute inset-0">
-            <motion.div style={{ x: textX, y: textY, rotateX: textRotX, rotateY: textRotY, transformPerspective: 1200 }} className="absolute left-[6%] top-[20%] right-[8%] sm:top-[34%]">
-              <h2
-                style={{
-                  fontSize: 'clamp(3.1rem, 8.2cqw, 10.5rem)',
-                  fontWeight: 500,
-                  lineHeight: 1.02,
-                  letterSpacing: '-0.025em',
-                  textShadow: '0 6px 50px rgba(60,10,0,.35)',
-                }}
-              >
-                Visualise
-                <br />
-                Your Mind
-                <br />
-                in Motion
-              </h2>
-            </motion.div>
-
-            <motion.p
-              style={{ x: badgeX, y: badgeY, fontSize: 'clamp(.8rem, 1.5cqw, 1.7rem)', lineHeight: 1.2 }}
-              className="absolute right-[4.5%] top-[37%] hidden max-w-[12em] text-right font-medium sm:block"
-            >
-              Award winning
-              <br />
-              Designs
-            </motion.p>
-            <motion.p
-              style={{ x: badgeX, y: badgeY, fontSize: 'clamp(.8rem, 1.5cqw, 1.7rem)', lineHeight: 1.2 }}
-              className="absolute right-[4.5%] top-[64%] hidden max-w-[12em] text-right font-medium sm:block"
-            >
-              Creative
-              <br />
-              Web Designer
-            </motion.p>
-            <p className="absolute left-[6%] right-[6%] top-[41%] flex justify-between text-[.8rem] font-medium leading-tight sm:hidden">
-              <span>Award winning<br />Designs</span>
-              <span className="text-right">Creative<br />Web Designer</span>
-            </p>
-
-            {/* in-card nav (fades as the card shrinks) */}
-            <motion.header style={{ opacity: cardNav }} className="absolute inset-x-0 top-0 flex items-center justify-between px-[5%] pt-[3.2%]">
-              <a href="#manifesto" className="pointer-events-auto"><Logo /></a>
-              <a
-                href="#contact"
-                className={`pointer-events-auto flex items-center gap-[.7em] rounded-full bg-white px-[1.4em] py-[.8em] font-medium text-black transition-transform hover:scale-[1.04] sm:px-[2.1em] sm:py-[1.05em] ${pill}`}
-              >
-                <span className="h-[.45em] w-[.45em] rounded-full bg-black" />
-                Get in Touch
-              </a>
-            </motion.header>
-          </motion.div>
-
-          {/* model layer (front) – original colours, lifted off the plate; head breaks out of the card's top edge */}
-          <motion.div className="pointer-events-none absolute inset-0 flex items-end justify-center">
-            <motion.img
-              src={MODEL_SRC}
-              alt="Portrait of a model in a black blazer"
-              draggable={false}
-              style={{
-                x: modelX,
-                y: modelY,
-                rotateX: modelRotX,
-                rotateY: modelRotY,
-                transformPerspective: 1200,
-                filter: 'drop-shadow(0 28px 36px rgba(30,4,0,.55))', // one shadow instead of two (bake it into the PNG for zero cost)
-              }}
-              className="h-[64%] w-[94%] select-none object-contain object-bottom sm:h-[92%] sm:w-auto"
-            />
-          </motion.div>
-        </motion.div>
-
-        {/* intro title – cut at 50%: the left half exits left, the right half exits right */}
-        <motion.h2 aria-label="Built with scale" style={{ opacity: splitOpacity }} className="pointer-events-none absolute inset-0 z-20">
-          {[
-            { x: splitLeft, clip: 'inset(0 calc(50% - .5px) 0 0)' },
-            { x: splitRight, clip: 'inset(0 0 0 calc(50% - .5px))' },
-          ].map((half, i) => (
-            <motion.span
-              key={i}
-              aria-hidden="true"
-              className="absolute inset-x-0 top-1/2 block px-[6%] text-center font-extrabold uppercase will-change-transform"
-              style={{
-                x: half.x,
-                y: '-50%',
-                clipPath: half.clip,
-                fontSize: 'clamp(2rem, 8.5cqw, 9rem)',
-                lineHeight: 0.95,
-                letterSpacing: '-0.03em',
-                textShadow: '0 8px 60px rgba(0,0,0,.55)',
-              }}
-            >
-              Built with scale
-            </motion.span>
-          ))}
-        </motion.h2>
-
-        {/* orange light seam – a hair-thin line of light at the split that widens with the gap, as if the card's glow
-            were pushing the two halves apart. Sits just above the title (z-20) and under the nav (z-30). */}
-        <motion.div aria-hidden="true" style={{ opacity: seamOpacity }} className="pointer-events-none absolute inset-0 z-[21]">
-          <div
-            className="absolute inset-0"
-            style={{
-              // fades out toward the top and bottom edges so it reads as a beam of light, not a divider
-              WebkitMaskImage: 'linear-gradient(to bottom, transparent 4%, #000 28%, #000 72%, transparent 96%)',
-              maskImage: 'linear-gradient(to bottom, transparent 4%, #000 28%, #000 72%, transparent 96%)',
-            }}
-          >
-            {/* glow body: fills the gap between the halves, hottest on the centre line, softly fading into the cut edges */}
-            <motion.div
-              className="absolute inset-y-0 left-0 w-full will-change-transform"
-              style={{
-                scaleX: seamGap,
-                transformOrigin: '50% 50%',
-                background:
-                  'linear-gradient(90deg, rgba(255,96,24,0) 0%, rgba(255,112,36,.5) 28%, rgba(255,150,70,.85) 50%, rgba(255,112,36,.5) 72%, rgba(255,96,24,0) 100%)',
-              }}
-            />
-            {/* core: the thin white-hot filament with a wide orange halo */}
-            <div
-              className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2"
-              style={{
-                background: 'linear-gradient(to bottom, rgba(255,226,184,0), #ffe3bd 30%, #fff1dc 50%, #ffe3bd 70%, rgba(255,226,184,0))',
-                boxShadow: '0 0 10px 2px rgba(255,150,64,.95), 0 0 36px 8px rgba(255,110,36,.6), 0 0 110px 26px rgba(255,90,24,.3)',
-              }}
-            />
-          </div>
-        </motion.div>
-
-        {/* page nav (appears over the wall once the card has shrunk) */}
-        <motion.header
-          style={{ opacity: pageNav }}
-          className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between px-[3.5%] pb-[4cqh] pt-[2.6cqh]"
-        >
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 -z-10"
-            style={{
-              backdropFilter: 'blur(18px)',
-              WebkitBackdropFilter: 'blur(18px)',
-              background: 'linear-gradient(to bottom, rgba(11,11,12,.55), transparent)',
-              maskImage: 'linear-gradient(to bottom, #000 55%, transparent)',
-              WebkitMaskImage: 'linear-gradient(to bottom, #000 55%, transparent)',
-            }}
-          />
-          <a href="#manifesto" className="pointer-events-auto"><Logo /></a>
+      {/* text layer (mid depth) */}
+      <motion.div className="pointer-events-none absolute inset-0">
+        {/* top bar: logo · links · pill */}
+        <motion.header style={{ opacity: detailsFade }} className="absolute inset-x-0 top-0 hidden items-center justify-between px-[4.2%] pt-[2.4%] sm:flex">
+          <a href="#manifesto" onClick={go('#preloader')} aria-label="Back to top" className="pointer-events-auto text-white">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" style={{ width: '2cqw', height: '2cqw' }}>
+              <path d="M12 3l8.5 4.5L12 12 3.5 7.5 12 3z" />
+              <path d="M3.5 12L12 16.5 20.5 12" />
+              <path d="M3.5 16.5L12 21l8.5-4.5" />
+            </svg>
+          </a>
+          <nav className="absolute left-1/2 flex -translate-x-1/2 items-center gap-[3.6cqw] font-light text-white" style={{ fontSize: 'clamp(.7rem, 1.02cqw, 1.2rem)' }}>
+            {NAV.map((n) => (
+              <a key={n.label} href={n.to} onClick={go(n.to)} className="pointer-events-auto opacity-90 transition-opacity hover:opacity-100">{n.label}</a>
+            ))}
+          </nav>
           <a
             href="#contact"
-            className={`pointer-events-auto flex items-center gap-[.7em] rounded-full bg-white px-[1.4em] py-[.8em] font-medium text-black transition-transform hover:scale-[1.04] sm:px-[2.1em] sm:py-[1.05em] ${pill}`}
+            onClick={go('#contact')}
+            className="pointer-events-auto inline-flex items-center rounded-full bg-[#9a0f28] px-[1.9cqw] py-[.62cqw] font-light text-white transition-colors hover:bg-[#b3142f]"
+            style={{ fontSize: 'clamp(.7rem, 1.02cqw, 1.2rem)' }}
           >
-            <span className="h-[.45em] w-[.45em] rounded-full bg-black" />
-            Get in Touch
+            Let&apos;s connect
           </a>
         </motion.header>
 
-        {/* hints */}
-        <motion.div style={{ opacity: frameHint }} className="pointer-events-none absolute inset-x-0 bottom-[5%] z-40 flex flex-col items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/60">
-          <span>Scroll</span>
-          <ChevronDown className="h-4 w-4 animate-bounce" />
-        </motion.div>
-        <motion.div style={{ opacity: cue }} className="pointer-events-none absolute inset-x-0 bottom-[3%] z-40 flex justify-center">
-          <span
-            className="flex items-center gap-2 rounded-full px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white"
-            style={{ background: 'rgba(11,11,12,.7)', border: '1px solid rgba(255,255,255,.2)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
+        {/* top left: headline, paragraph and button */}
+        <motion.div style={{ x: textX, y: textY, rotateX: textRotX, rotateY: textRotY, transformPerspective: 1200 }} className="absolute left-[3.6%] top-[16%] w-[30%]">
+          <h2
+            className="text-white"
+            style={{ fontSize: 'clamp(1.05rem, 2.05cqw, 2.5rem)', fontWeight: 400, lineHeight: 1.12, letterSpacing: '0.01em', textTransform: 'uppercase' }}
           >
-            Selected work
-            <ChevronDown className="h-4 w-4 animate-bounce" />
-          </span>
+            {[['Give your brand', lineY1], ['a space it can', lineY2], ['actually live into', lineY3]].map(([t, y]) => (
+              <span key={t} className="-mb-[0.1em] block overflow-hidden pb-[0.1em]">
+                <motion.span className="block will-change-transform" style={{ y }}>{t}</motion.span>
+              </span>
+            ))}
+          </h2>
+          <motion.div style={{ opacity: detailsFade }}>
+            <p className="mt-[1.5cqw] max-w-[21em] text-white/90" style={bodyText}>
+              From considered <b className="font-semibold">layouts to the last detail</b>, your team can trust. And from first principles to production-ready drawings.
+            </p>
+            <a
+              href="#projects"
+              onClick={go('#projects')}
+              className="pointer-events-auto mt-[1.4cqw] inline-flex items-center rounded-full bg-[#9a0f28] px-[2.1cqw] py-[.72cqw] font-light text-white transition-colors hover:bg-[#b3142f]"
+              style={{ fontSize: 'clamp(.7rem, 1.02cqw, 1.2rem)' }}
+            >
+              Read More
+            </a>
+          </motion.div>
         </motion.div>
+
+        {/* top right: studio title and paragraph */}
+        <motion.div style={{ x: badgeX, y: badgeY }} className="absolute right-[3.6%] top-[15%] w-[27%] text-right text-white">
+          <p style={{ fontSize: 'clamp(1.5rem, 3.7cqw, 4.6rem)', fontWeight: 300, lineHeight: 1.02, letterSpacing: '0.01em', textTransform: 'uppercase' }}>
+            {[['Interior', lineY1], ['Studio', lineY2]].map(([t, y]) => (
+              <span key={t} className="-mb-[0.1em] block overflow-hidden pb-[0.1em]">
+                <motion.span className="block will-change-transform" style={{ y }}>{t}</motion.span>
+              </span>
+            ))}
+          </p>
+          <motion.p style={{ ...bodyText, opacity: detailsFade }} className="ml-auto mt-[1.2cqw] max-w-[23em] text-white/90">
+            Elena Voss is an <b className="font-semibold">interior design studio</b> that treats every room as a story, not a layout. <b className="font-semibold">We design for people</b> who want spaces that feel like them, planned from the first sketch down to the smallest detail.
+          </motion.p>
+        </motion.div>
+
+        {/* bottom right: glass card (translucent amber panel with a light edge – no backdrop blur, which would be repainted constantly under the moving model) */}
+        <motion.div
+          style={{
+            opacity: detailsFade,
+            left: '83.6%',
+            top: '72.5%',
+            width: '13%',
+            background: 'linear-gradient(160deg, rgba(190,120,70,.5), rgba(120,55,15,.42))',
+            borderColor: 'rgba(255,210,160,.38)',
+            boxShadow: 'inset 0 1px 0 rgba(255,225,190,.35)',
+          }}
+          className="absolute hidden rounded-[1.1cqw] border p-[1.05cqw] text-white sm:block"
+        >
+          <div className="flex items-start justify-between gap-[.8cqw]">
+            <p className="font-normal" style={{ fontSize: 'clamp(.7rem, 1.02cqw, 1.2rem)', lineHeight: 1.2 }}>
+              Your Partner in
+              <br />
+              Interior Design
+            </p>
+            <a
+              href="#projects"
+              onClick={go('#projects')}
+              aria-label="See our work"
+              className="pointer-events-auto grid shrink-0 place-items-center rounded-full bg-black text-white transition-transform hover:scale-110"
+              style={{ width: '1.7cqw', height: '1.7cqw' }}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: '55%', height: '55%' }}><path d="M4.5 11.5l7-7M5.5 4.5h6v6" /></svg>
+            </a>
+          </div>
+          <p className="mt-[.7cqw] text-white/85" style={{ fontSize: 'clamp(.6rem, .72cqw, .85rem)', lineHeight: 1.45 }}>
+            Concept, drawings and build, handled by one small team.
+          </p>
+          <div className="mt-[.9cqw] flex items-center gap-[.6cqw]">
+            <span className="flex">
+              {AVATARS.map((c, i) => (
+                <span key={c} className="grid place-items-center rounded-full border text-[0px]" style={{ width: '1.5cqw', height: '1.5cqw', marginLeft: i ? '-.45cqw' : 0, background: c, borderColor: 'rgba(255,235,210,.85)' }}>·</span>
+              ))}
+            </span>
+            <span style={{ fontSize: 'clamp(.58rem, .7cqw, .82rem)', lineHeight: 1.25 }} className="text-white/90">
+              100+ happy
+              <br />
+              clients
+            </span>
+          </div>
+        </motion.div>
+      </motion.div>
+
+      {/* model layer (front) – lifted off the plate; warm rim light comes from the plate's glow behind it */}
+      <motion.div style={{ y: modelRise, opacity: modelFade }} className="pointer-events-none absolute inset-0 flex items-end justify-center">
+        <motion.img
+          src={MODEL_SRC}
+          alt="Portrait of a model in a black blazer"
+          draggable={false}
+          style={{
+            x: modelX,
+            y: modelY,
+            rotateX: modelRotX,
+            rotateY: modelRotY,
+            transformPerspective: 1200,
+            filter: 'drop-shadow(0 22px 40px rgba(70,28,2,.5))',
+          }}
+          className="h-[64%] w-[94%] select-none object-contain object-bottom sm:h-[92%] sm:w-auto"
+        />
+      </motion.div>
+    </div>
+  )
+
+  return (
+    <section id="manifesto" ref={ref} style={{ height: `${PIN_SVH + 100}svh`, position: 'relative', background: '#000' }}>
+      <div
+        className="sticky top-0 h-[100svh] w-full overflow-hidden text-white"
+        style={{ background: '#000', fontFamily: DISPLAY_FONT, containerType: 'size' }}
+      >
+        {/* everything but the stats lives in this layer (the stats sit above it, in front) */}
+        <motion.div className="absolute inset-0 z-10">
+          {/* beat 1: the numbers scene (mounted only while it can be seen) */}
+          {showNumbers && (
+            <motion.div style={{ opacity: numbersOpacity, display: numbersOn ? 'block' : 'none' }} className="absolute inset-0 z-0">
+              <PerspectiveTunnelStage progress={tunnel} active={live && numbersOn} />
+            </motion.div>
+          )}
+
+          {/* beats 2–3: the word, filled with the Elena Voss screen; the camera flies into one of its letters until that
+              screen fills the display. (With reduced motion the screen is simply shown.) */}
+          {reduced ? (
+            <div className="absolute inset-0 z-10">{card}</div>
+          ) : (
+            <motion.div style={{ opacity: wordIn }} className="absolute inset-0 z-10">
+              <GlyphZoom progress={zoom} intro={intro} word="BUILT WITH SCALE">
+                {card}
+              </GlyphZoom>
+            </motion.div>
+          )}
+
+          {/* cue */}
+          <motion.div style={{ opacity: cue }} className="pointer-events-none absolute inset-x-0 bottom-[3%] z-40 flex justify-center">
+            <span
+              className="flex items-center gap-2 rounded-full px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white"
+              style={{ background: 'rgba(11,11,12,.7)', border: '1px solid rgba(255,255,255,.2)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
+            >
+              Selected work
+              <ChevronDown className="h-4 w-4 animate-bounce" />
+            </span>
+          </motion.div>
+        </motion.div>
+
+        {/* beat 3b: the stats stay along the bottom, in front of the Elena card (z-15: above the layer below). Mounted for the
+            rest of the section – they live on the card until the next section rises over it. */}
+        {armed && (
+          <div className="pointer-events-none absolute inset-0 z-[15]">
+            <TunnelStats progress={tunnel} stats={STATS} edge={edge} edgeStop={STATS_BOTTOM_SVH} />
+          </div>
+        )}
       </div>
     </section>
   )

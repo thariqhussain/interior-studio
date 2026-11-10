@@ -573,8 +573,28 @@ export default function LanyardBadge({
     })
     observer.observe(root)
 
+    // the simulation only runs while the badge is on (or just about to be on) screen – it used to run every frame for the whole visit
+    let onScreen = true
+    const visibility = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting === onScreen) return
+        onScreen = entry.isIntersecting
+        if (onScreen) {
+          last = performance.now()
+          acc = 0
+          if (!raf) raf = requestAnimationFrame(tick)
+        } else {
+          cancelAnimationFrame(raf)
+          raf = 0
+        }
+      },
+      { rootMargin: "200px" },
+    )
+    visibility.observe(root)
+
     return () => {
       cancelAnimationFrame(raf)
+      visibility.disconnect()
       observer.disconnect()
       card.removeEventListener("pointerdown", onDown)
       card.removeEventListener("pointermove", onMove)
@@ -728,5 +748,6 @@ export default function LanyardBadge({
         </button>
       )}
     </section>
+    
   )
 }

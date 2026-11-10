@@ -4,7 +4,7 @@ import BeforeAfterGallery from '@/components/ui/before-after-gallery'
    One entry per room. `after` is the finished room; `before` is the room before the work.
    PLACEHOLDERS: the photos are stock images, and no real "before" photos exist yet, so without a `before` the
    slider shows a dulled, desaturated copy of the `after` photo. Add `before: '/assets/…'` per room to use real ones. */
-const photo = (id) => `https://images.unsplash.com/photo-${id}?w=1600&q=80&auto=format&fit=crop`
+const photo = (id) => `https://images.unsplash.com/photo-${id}?w=1200&q=78&auto=format&fit=crop`
 
 const ROOMS = [
   {
