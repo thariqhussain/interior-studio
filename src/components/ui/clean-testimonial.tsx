@@ -10,6 +10,10 @@ export interface TestimonialItem {
   role: string
   company: string
   avatar: string
+  /** 1–5 stars (default 5). */
+  rating?: number
+  /** What was designed, e.g. "3-bed apartment". */
+  project?: string
 }
 
 /* Placeholder reviews and Unsplash stock portraits – replace with the studio's real clients (and real photos). */
@@ -20,6 +24,7 @@ const DEFAULT_ITEMS: TestimonialItem[] = [
     author: "Maya Patel",
     role: "Homeowner",
     company: "Bengaluru",
+    project: "3-bed apartment · Full interiors",
     avatar: photo("1494790108377-be9c29b29330"),
   },
   {
@@ -27,6 +32,7 @@ const DEFAULT_ITEMS: TestimonialItem[] = [
     author: "Daniel Brooks",
     role: "Villa client",
     company: "Kochi",
+    project: "Sea-facing villa · Turnkey",
     avatar: photo("1507003211169-0a1dd7228f2d"),
   },
   {
@@ -34,9 +40,20 @@ const DEFAULT_ITEMS: TestimonialItem[] = [
     author: "Elena Frost",
     role: "Founder",
     company: "Atelier Nord",
+    project: "Studio office · Workspace design",
     avatar: photo("1438761681033-6461ffad8d80"),
   },
 ]
+
+const Stars = ({ n = 5, className = "" }: { n?: number; className?: string }) => (
+  <span className={`inline-flex gap-0.5 ${className}`} role="img" aria-label={`${n} out of 5 stars`}>
+    {[0, 1, 2, 3, 4].map((i) => (
+      <svg key={i} viewBox="0 0 20 20" className={`size-[1.05em] ${i < n ? "fill-[#f5b301]" : "fill-white/15"}`} aria-hidden="true">
+        <path d="M10 1.6l2.5 5.5 6 .7-4.5 4.1 1.3 5.9L10 14.8l-5.3 3 1.3-5.9L1.5 7.8l6-.7L10 1.6z" />
+      </svg>
+    ))}
+  </span>
+)
 
 function usePreloadImages(images: string[], enabled: boolean) {
   useEffect(() => {
@@ -70,6 +87,7 @@ function SplitText({ text }: { text: string }) {
 export function Testimonial({ items = DEFAULT_ITEMS, className = "" }: { items?: TestimonialItem[]; className?: string }) {
   const [activeIndex, setActiveIndex] = useState(0)
   const [isHovered, setIsHovered] = useState(false)
+  const [side, setSide] = useState<"prev" | "next">("next") // left half of the section = Previous, right half = Next
   const containerRef = useRef<HTMLDivElement>(null)
 
   const near = useInView(containerRef, { once: true, margin: "400px 0px" })
@@ -87,22 +105,30 @@ export function Testimonial({ items = DEFAULT_ITEMS, className = "" }: { items?:
       const rect = containerRef.current.getBoundingClientRect()
       mouseX.set(e.clientX - rect.left)
       mouseY.set(e.clientY - rect.top)
+      setSide(e.clientX < rect.left + rect.width / 2 ? "prev" : "next")
     },
     [mouseX, mouseY],
   )
 
   const handleNext = () => setActiveIndex((prev) => (prev + 1) % items.length)
+  const handlePrev = () => setActiveIndex((prev) => (prev - 1 + items.length) % items.length)
+  const handleClick = (e: React.MouseEvent) => {
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (rect && e.clientX < rect.left + rect.width / 2) handlePrev()
+    else handleNext()
+  }
   const current = items[activeIndex]
+  const average = (items.reduce((a, t) => a + (t.rating ?? 5), 0) / items.length).toFixed(1)
 
   return (
     <div
       ref={containerRef}
-      className={`relative mx-auto w-full max-w-3xl px-8 py-24 ${className}`}
+      className={`relative mx-auto w-full max-w-3xl select-none px-8 py-24 ${className}`}
       style={{ cursor: "none" }}
       onMouseMove={handleMouseMove}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      onClick={handleNext}
+      onClick={handleClick}
     >
       {/* custom magnetic cursor */}
       <motion.div
@@ -119,13 +145,25 @@ export function Testimonial({ items = DEFAULT_ITEMS, className = "" }: { items?:
             animate={{ opacity: isHovered ? 1 : 0 }}
             transition={{ delay: 0.1 }}
           >
-            Next
+            {side === "prev" ? "Prev" : "Next"}
           </motion.span>
         </motion.div>
       </motion.div>
 
-      {/* floating index indicator */}
-      <motion.div className="absolute right-8 top-8 flex items-baseline gap-1 font-mono text-xs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
+      {/* review header */}
+      <div className="relative mb-10 mt-6 text-left">
+        <p className="text-xs font-medium uppercase tracking-[0.25em] text-[#d1182b]">Client reviews</p>
+        <h2 className="mt-3 text-3xl font-semibold leading-[1.08] tracking-[-0.03em] text-foreground md:text-5xl">What our clients say</h2>
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+          <Stars n={5} className="text-lg" />
+          <span><span className="font-semibold text-foreground">{average}</span> average · {items.length} reviews shown</span>
+        </div>
+      </div>
+
+      {/* main content */}
+      <div className="relative rounded-[1.75rem] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.015] p-6 md:p-10">
+        <svg aria-hidden="true" viewBox="0 0 48 36" className="absolute -top-5 left-6 h-10 w-12 fill-[#d1182b] md:left-10"><path d="M0 36V19.6C0 8.4 6.3 1.6 18 0v6.6C11.7 8 9 11.6 8.6 16H18v20H0zm27 0V19.6C27 8.4 33.3 1.6 45 0v6.6C38.7 8 36 11.6 35.6 16H45v20H27z" /></svg>
+        <motion.div className="absolute right-6 top-6 md:right-10 md:top-8 flex items-baseline gap-1 font-mono text-xs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
         <motion.span
           className="text-2xl font-light text-foreground"
           key={activeIndex}
@@ -138,24 +176,7 @@ export function Testimonial({ items = DEFAULT_ITEMS, className = "" }: { items?:
         <span className="text-muted-foreground">/</span>
         <span className="text-muted-foreground">{String(items.length).padStart(2, "0")}</span>
       </motion.div>
-
-      {/* stacked avatar previews */}
-      <motion.div className="absolute left-8 top-8 flex -space-x-2" initial={{ opacity: 0 }} animate={{ opacity: 0.6 }} transition={{ delay: 0.6 }}>
-        {items.map((t, i) => (
-          <motion.div
-            key={i}
-            className={`h-6 w-6 overflow-hidden rounded-full border-2 border-background transition-all duration-300 ${
-              i === activeIndex ? "ring-1 ring-accent ring-offset-1 ring-offset-background" : "opacity-50 grayscale"
-            }`}
-            whileHover={{ scale: 1.1, opacity: 1 }}
-          >
-            <img src={t.avatar} alt={t.author} loading="lazy" className="h-full w-full object-cover" />
-          </motion.div>
-        ))}
-      </motion.div>
-
-      {/* main content */}
-      <div className="relative">
+        <Stars n={current.rating ?? 5} className="mb-5 mt-2 text-xl" />
         <AnimatePresence mode="wait">
           <motion.blockquote
             key={activeIndex}
@@ -171,7 +192,7 @@ export function Testimonial({ items = DEFAULT_ITEMS, className = "" }: { items?:
         {/* author */}
         <motion.div className="relative mt-12" layout>
           <div className="flex items-center gap-4">
-            <div className="relative h-12 w-12">
+            <div className="relative h-12 w-12 shrink-0">
               <motion.div className="absolute -inset-1.5 rounded-full border border-accent/40" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }} />
               {items.map((t, i) => (
                 <motion.img
@@ -206,6 +227,13 @@ export function Testimonial({ items = DEFAULT_ITEMS, className = "" }: { items?:
                 <span className="mt-0.5 block font-mono text-xs uppercase tracking-widest text-muted-foreground">
                   {current.role} — {current.company}
                 </span>
+                <span className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-medium text-emerald-400">
+                    <svg viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" /></svg>
+                    Verified client
+                  </span>
+                  {current.project && <span className="text-xs text-muted-foreground">{current.project}</span>}
+                </span>
               </motion.div>
             </AnimatePresence>
           </div>
@@ -223,7 +251,7 @@ export function Testimonial({ items = DEFAULT_ITEMS, className = "" }: { items?:
       </div>
 
       <motion.div className="absolute bottom-8 left-8 flex items-center gap-2" initial={{ opacity: 0 }} animate={{ opacity: isHovered ? 0.4 : 0.2 }} transition={{ duration: 0.3 }}>
-        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Click anywhere</span>
+        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground"><span className="max-sm:hidden">Click</span><span className="sm:hidden">Tap</span> left for previous · right for next</span>
       </motion.div>
     </div>
   )

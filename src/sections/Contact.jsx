@@ -5,7 +5,7 @@ import LanyardBadge from '@/components/ui/lanyard-badge'
 const EMAIL = 'hello@example.com'
 const BOOKING_URL = 'https://cal.com/your-studio' // Cal.com / Calendly link for "Book a call"
 
-// hang the lanyard on the right half on desktop, centred on mobile
+// hang the lanyard on the right half on desktop; on mobile it hangs from the top centre, behind the text
 function useAnchorX() {
   const [x, setX] = useState(0.5)
   useEffect(() => {
@@ -22,9 +22,9 @@ export default function Contact() {
   const anchorX = useAnchorX()
 
   return (
-    <section id="contact" className="relative overflow-hidden bg-white">
+    <section id="contact" className="relative overflow-hidden bg-white max-lg:min-h-[100svh]">
       {/* text, left-aligned */}
-      <div className="relative z-10 mx-auto max-w-7xl lg:flex lg:min-h-screen lg:items-center">
+      <div className="relative z-10 mx-auto max-w-7xl max-lg:pointer-events-none lg:flex lg:min-h-[100svh] lg:items-center">
         <div className="px-6 pb-8 pt-24 text-left sm:px-10 lg:w-1/2 lg:py-24 lg:pl-12 lg:pr-8">
           <p className="mb-5 text-xs font-medium uppercase tracking-[0.25em] text-neutral-500">
             Contact
@@ -46,13 +46,13 @@ export default function Contact() {
               href={BOOKING_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center rounded-full bg-neutral-900 px-7 py-3.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700"
+              className="pointer-events-auto inline-flex items-center justify-center rounded-full bg-neutral-900 px-7 py-3.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700"
             >
               Book a call
             </a>
             <a
               href={`mailto:${EMAIL}`}
-              className="text-sm font-medium text-neutral-900 underline underline-offset-4 transition-colors hover:text-neutral-600"
+              className="pointer-events-auto text-sm font-medium text-neutral-900 underline underline-offset-4 transition-colors hover:text-neutral-600"
             >
               {EMAIL}
             </a>
@@ -63,13 +63,11 @@ export default function Contact() {
           </p>
         </div>
 
-        {/* mobile only: room for the badge under the text */}
-        <div className="h-[100svh] lg:hidden" aria-hidden="true" />
       </div>
 
       {/* lanyard layer: covers the whole section on desktop (the bottom screen on mobile),
           lets clicks through to the text, only the card itself is draggable */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-[100svh] lg:top-0 lg:h-auto">
+      <div className="pointer-events-none absolute inset-0 z-0 lg:z-20">
         <LanyardBadge
           height="100%"
           anchorX={anchorX}
@@ -80,6 +78,7 @@ export default function Contact() {
           role="Book a call"
           strapText="let's build together"
           strapLabel="INTERIOR STUDIO"
+          ribbonColor={anchorX === 0.75 ? undefined : '#e8dfcc'} // phones: a cream ribbon, the same stock as the card
         />
       </div>
     </section>

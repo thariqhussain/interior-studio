@@ -29,12 +29,6 @@ const PLATE =
   'linear-gradient(270deg, rgba(55,22,2,.55) 0%, transparent 38%),' + // the right side falls away
   'linear-gradient(0deg, rgba(28,11,1,.85) 0%, rgba(60,26,3,.5) 14%, transparent 34%),' + // dark floor under the shoulders
   'linear-gradient(180deg, #8f3f03 0%, #b04e06 36%, #a84b06 62%, #6a3003 100%)'
-const NAV = [
-  { label: 'Work', to: '#projects' },
-  { label: 'Services', to: '#services' },
-  { label: 'About', to: '#team' },
-  { label: 'Contact', to: '#contact' },
-]
 const AVATARS = ['#e9b077', '#c97b3a', '#8f4a1a']
 
 const MODEL_SRC = '/male_model.png' // background removed from male_model.jpeg
@@ -86,6 +80,9 @@ export default function Manifesto() {
   // beat 4 – FeaturedProjects rises over the stage; its top line reaches the stats and pushes them up, so they stay just
   // above the line instead of being covered. The line's height (svh from the top of the screen) is linear in the scroll
   // because the stage is pinned and the next section is pulled up by exactly RISE_SVH.
+  // phones: there is no room above the stats for the rising edge to push them through, so they fade out as the edge arrives
+  const isPhone = typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+  const statsFade = useTransform(rawProgress, [RISE_START, RISE_START + (1 - RISE_START) * 0.4], isPhone ? [1, 0] : [1, 1])
   const edge = useTransform(rawProgress, (r) => 100 * (1 - Math.min(1, Math.max(0, (r - RISE_START) / (1 - RISE_START)))))
 
   // beat 1 – the numbers scene (its own progress drives the tunnel and the stats)
@@ -140,7 +137,7 @@ export default function Manifesto() {
   const modelY = useTransform(sy, (v) => v * 12)
 
   const go = (to) => (e) => { e.preventDefault(); scrollToTarget(to) }
-  const bodyText = { fontSize: 'clamp(.68rem, .88cqw, 1rem)', lineHeight: 1.55 }
+  const bodyText = 'text-[.92rem] leading-[1.5] sm:text-[length:clamp(.68rem,.88cqw,1rem)] sm:leading-[1.55]'
 
   const card = (
     <div className="absolute inset-0" style={{ fontFamily: EL_FONT }}>
@@ -150,10 +147,8 @@ export default function Manifesto() {
       {/* giant pale word, behind the model: thin letters, white at the top fading out downwards */}
       <motion.div aria-hidden="true" style={{ opacity: modelFade }} className="pointer-events-none absolute inset-0 flex justify-center">
         <span
-          className="absolute select-none whitespace-nowrap"
+          className="absolute top-[54%] select-none whitespace-nowrap text-[17.5cqw] sm:top-[41%] sm:text-[17.4cqw]"
           style={{
-            top: '41%',
-            fontSize: '17.4cqw',
             fontWeight: 200,
             lineHeight: 1,
             letterSpacing: '0.03em',
@@ -169,35 +164,11 @@ export default function Manifesto() {
 
       {/* text layer (mid depth) */}
       <motion.div className="pointer-events-none absolute inset-0">
-        {/* top bar: logo · links · pill */}
-        <motion.header style={{ opacity: detailsFade }} className="absolute inset-x-0 top-0 hidden items-center justify-between px-[4.2%] pt-[2.4%] sm:flex">
-          <a href="#manifesto" onClick={go('#preloader')} aria-label="Back to top" className="pointer-events-auto text-white">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" style={{ width: '2cqw', height: '2cqw' }}>
-              <path d="M12 3l8.5 4.5L12 12 3.5 7.5 12 3z" />
-              <path d="M3.5 12L12 16.5 20.5 12" />
-              <path d="M3.5 16.5L12 21l8.5-4.5" />
-            </svg>
-          </a>
-          <nav className="absolute left-1/2 flex -translate-x-1/2 items-center gap-[3.6cqw] font-light text-white" style={{ fontSize: 'clamp(.7rem, 1.02cqw, 1.2rem)' }}>
-            {NAV.map((n) => (
-              <a key={n.label} href={n.to} onClick={go(n.to)} className="pointer-events-auto opacity-90 transition-opacity hover:opacity-100">{n.label}</a>
-            ))}
-          </nav>
-          <a
-            href="#contact"
-            onClick={go('#contact')}
-            className="pointer-events-auto inline-flex items-center rounded-full bg-[#9a0f28] px-[1.9cqw] py-[.62cqw] font-light text-white transition-colors hover:bg-[#b3142f]"
-            style={{ fontSize: 'clamp(.7rem, 1.02cqw, 1.2rem)' }}
-          >
-            Let&apos;s connect
-          </a>
-        </motion.header>
-
         {/* top left: headline, paragraph and button */}
-        <motion.div style={{ x: textX, y: textY, rotateX: textRotX, rotateY: textRotY, transformPerspective: 1200 }} className="absolute left-[3.6%] top-[16%] w-[30%]">
+        <motion.div style={{ x: textX, y: textY, rotateX: textRotX, rotateY: textRotY, transformPerspective: 1200 }} className="absolute left-[6%] top-[calc(11%+20px)] w-[88%] sm:left-[3.6%] sm:top-[16%] sm:w-[30%]">
           <h2
-            className="text-white"
-            style={{ fontSize: 'clamp(1.05rem, 2.05cqw, 2.5rem)', fontWeight: 400, lineHeight: 1.12, letterSpacing: '0.01em', textTransform: 'uppercase' }}
+            className="text-[clamp(1.5rem,7.4vw,1.9rem)] text-white sm:text-[length:clamp(1.05rem,2.05cqw,2.5rem)]"
+            style={{ fontWeight: 400, lineHeight: 1.12, letterSpacing: '0.01em', textTransform: 'uppercase' }}
           >
             {[['Give your brand', lineY1], ['a space it can', lineY2], ['actually live into', lineY3]].map(([t, y]) => (
               <span key={t} className="-mb-[0.1em] block overflow-hidden pb-[0.1em]">
@@ -206,14 +177,13 @@ export default function Manifesto() {
             ))}
           </h2>
           <motion.div style={{ opacity: detailsFade }}>
-            <p className="mt-[1.5cqw] max-w-[21em] text-white/90" style={bodyText}>
+            <p className={`mt-3 max-w-[21em] text-white/90 sm:mt-[1.5cqw] ${bodyText}`}>
               From considered <b className="font-semibold">layouts to the last detail</b>, your team can trust. And from first principles to production-ready drawings.
             </p>
             <a
               href="#projects"
               onClick={go('#projects')}
-              className="pointer-events-auto mt-[1.4cqw] inline-flex items-center rounded-full bg-[#9a0f28] px-[2.1cqw] py-[.72cqw] font-light text-white transition-colors hover:bg-[#b3142f]"
-              style={{ fontSize: 'clamp(.7rem, 1.02cqw, 1.2rem)' }}
+              className="pointer-events-auto mt-4 inline-flex items-center rounded-full bg-[#9a0f28] px-5 py-2 text-sm font-light text-white transition-colors hover:bg-[#b3142f] sm:mt-[1.4cqw] sm:px-[2.1cqw] sm:py-[.72cqw] sm:text-[length:clamp(.7rem,1.02cqw,1.2rem)]"
             >
               Read More
             </a>
@@ -221,7 +191,7 @@ export default function Manifesto() {
         </motion.div>
 
         {/* top right: studio title and paragraph */}
-        <motion.div style={{ x: badgeX, y: badgeY }} className="absolute right-[3.6%] top-[15%] w-[27%] text-right text-white">
+        <motion.div style={{ x: badgeX, y: badgeY }} className="absolute right-[3.6%] top-[15%] hidden w-[27%] text-right text-white sm:block">
           <p style={{ fontSize: 'clamp(1.5rem, 3.7cqw, 4.6rem)', fontWeight: 300, lineHeight: 1.02, letterSpacing: '0.01em', textTransform: 'uppercase' }}>
             {[['Interior', lineY1], ['Studio', lineY2]].map(([t, y]) => (
               <span key={t} className="-mb-[0.1em] block overflow-hidden pb-[0.1em]">
@@ -229,7 +199,7 @@ export default function Manifesto() {
               </span>
             ))}
           </p>
-          <motion.p style={{ ...bodyText, opacity: detailsFade }} className="ml-auto mt-[1.2cqw] max-w-[23em] text-white/90">
+          <motion.p style={{ opacity: detailsFade }} className={`ml-auto mt-[1.2cqw] max-w-[23em] text-white/90 ${bodyText}`}>
             Elena Voss is an <b className="font-semibold">interior design studio</b> that treats every room as a story, not a layout. <b className="font-semibold">We design for people</b> who want spaces that feel like them, planned from the first sketch down to the smallest detail.
           </motion.p>
         </motion.div>
@@ -295,7 +265,7 @@ export default function Manifesto() {
             transformPerspective: 1200,
             filter: 'drop-shadow(0 22px 40px rgba(70,28,2,.5))',
           }}
-          className="h-[64%] w-[94%] select-none object-contain object-bottom sm:h-[92%] sm:w-auto"
+          className="max-sm:h-auto max-sm:w-[195%] max-sm:max-w-none select-none object-contain object-bottom sm:h-[92%] sm:w-auto"
         />
       </motion.div>
     </div>
@@ -343,9 +313,9 @@ export default function Manifesto() {
         {/* beat 3b: the stats stay along the bottom, in front of the Elena card (z-15: above the layer below). Mounted for the
             rest of the section – they live on the card until the next section rises over it. */}
         {armed && (
-          <div className="pointer-events-none absolute inset-0 z-[15]">
+          <motion.div style={{ opacity: statsFade }} className="pointer-events-none absolute inset-0 z-[15]">
             <TunnelStats progress={tunnel} stats={STATS} edge={edge} edgeStop={STATS_BOTTOM_SVH} />
-          </div>
+          </motion.div>
         )}
       </div>
     </section>

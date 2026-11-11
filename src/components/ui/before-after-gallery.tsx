@@ -13,7 +13,7 @@ import {
     type AnimationPlaybackControls,
 } from "framer-motion";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type TouchEvent } from "react";
 
 export interface BeforeAfterRoom {
     id: string;
@@ -131,6 +131,18 @@ export default function BeforeAfterGallery({
         tabRefs.current[next]?.focus();
     };
 
+    // phones: swipe the caption sideways to change room (one room is shown at a time)
+    const swipeX = useRef<number | null>(null);
+    const onSwipeStart = (e: TouchEvent<HTMLDivElement>) => {
+        swipeX.current = e.touches[0]!.clientX;
+    };
+    const onSwipeEnd = (e: TouchEvent<HTMLDivElement>) => {
+        if (swipeX.current === null) return;
+        const dx = e.changedTouches[0]!.clientX - swipeX.current;
+        swipeX.current = null;
+        if (Math.abs(dx) > 40) go(index + (dx < 0 ? 1 : -1));
+    };
+
     const slide = {
         enter: (d: number) => ({ x: reduce ? 0 : d * 70, opacity: 0, filter: reduce ? "none" : "blur(10px)" }),
         center: { x: 0, opacity: 1, filter: "blur(0px)" },
@@ -158,8 +170,8 @@ export default function BeforeAfterGallery({
             </motion.div>
 
             {/* the room list and the comparison card start on the same line */}
-            <div className="mt-10 grid grid-cols-[minmax(0,1fr)] gap-10 lg:mt-14 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start lg:gap-16 xl:gap-24">
-            <div className="min-w-0 text-left">
+            <div className="mt-10 grid grid-cols-[minmax(0,1fr)] gap-10 max-sm:gap-0 lg:mt-14 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start lg:gap-16 xl:gap-24">
+            <div className="min-w-0 text-left max-sm:hidden">
                 <div
                     role="tablist"
                     aria-label="Rooms"
@@ -286,8 +298,8 @@ export default function BeforeAfterGallery({
                 </div>
 
                 {/* caption + carousel controls */}
-                <div className="mt-6 flex items-start justify-between gap-6">
-                    <div className="min-h-[4.25rem] min-w-0" aria-live="polite">
+                <div className="mt-6 flex items-start justify-between gap-6 max-sm:items-center max-sm:gap-3">
+                    <div className="min-h-[4.25rem] min-w-0 max-sm:flex-1 max-sm:text-center" aria-live="polite" onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}>
                         <AnimatePresence mode="wait" initial={false}>
                             <motion.div
                                 key={room.id}
@@ -296,13 +308,13 @@ export default function BeforeAfterGallery({
                                 exit={{ opacity: 0, y: -8 }}
                                 transition={{ duration: 0.35, ease: EASE }}
                             >
-                                <p className="text-lg font-medium tracking-tight text-white sm:text-xl">{room.name}</p>
-                                <p className="mt-1 max-w-md text-sm leading-relaxed text-white/50 sm:text-base">{room.description}</p>
+                                <p className="text-lg font-medium tracking-tight text-white max-sm:text-2xl max-sm:font-bold sm:text-xl">{room.name}</p>
+                                <p className="mt-1 max-w-md text-sm leading-relaxed text-white/50 max-sm:font-semibold max-sm:text-white/80 sm:text-base">{room.description}</p>
                             </motion.div>
                         </AnimatePresence>
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-3">
+                    <div className="flex shrink-0 items-center gap-3 max-sm:contents">
                         <span className="mr-1 hidden text-sm tabular-nums text-white/45 sm:block">
                             <span className="text-white">{pad(index + 1)}</span> / {pad(rooms.length)}
                         </span>
@@ -310,7 +322,7 @@ export default function BeforeAfterGallery({
                             type="button"
                             aria-label="Previous room"
                             onClick={() => go(index - 1)}
-                            className="grid size-11 place-items-center rounded-full border border-white/15 text-white transition-colors hover:bg-white hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                            className="grid size-11 max-sm:-order-1 max-sm:shrink-0 place-items-center rounded-full border border-white/15 text-white transition-colors hover:bg-white hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                         >
                             <ChevronLeft className="size-5" />
                         </button>
@@ -318,7 +330,7 @@ export default function BeforeAfterGallery({
                             type="button"
                             aria-label="Next room"
                             onClick={() => go(index + 1)}
-                            className="grid size-11 place-items-center rounded-full border border-white/15 text-white transition-colors hover:bg-white hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                            className="grid size-11 max-sm:shrink-0 place-items-center rounded-full border border-white/15 text-white transition-colors hover:bg-white hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                         >
                             <ChevronRight className="size-5" />
                         </button>

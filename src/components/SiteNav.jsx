@@ -9,7 +9,6 @@ import { scrollToTarget } from '@/lib/useSmoothScroll'
    Edit ITEMS to change the links. `href` is a section id. */
 const ITEMS = [
   { label: 'Work', href: '#projects' },
-  { label: 'Process', href: '#process' },
   { label: 'Services', href: '#services' },
   { label: 'Team', href: '#team' },
   { label: 'FAQ', href: '#faq' },

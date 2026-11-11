@@ -58,3 +58,13 @@ export function useSmoothScroll() {
     }
   }, [])
 }
+
+/** Pause / resume smooth scrolling (used while the full-screen menu is open). */
+export function setScrollLocked(locked) {
+  if (!lenisInstance) { // no Lenis (phones): lock the page itself
+    document.documentElement.style.overflow = locked ? 'hidden' : ''
+    return
+  }
+  if (locked) lenisInstance.stop()
+  else lenisInstance.start()
+}

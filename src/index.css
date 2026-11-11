@@ -62,9 +62,14 @@
 @layer base {
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: system-ui, sans-serif; }
+  /* every phone: no font inflation after rotating, no grey tap flash, no 300ms double-tap-zoom delay, nothing wider than the screen */
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; overflow-x: clip; }
+  body { overflow-x: clip; max-width: 100%; }
+  a, button, [role="button"], [role="tab"], input { touch-action: manipulation; }
+  img, video, canvas, svg { max-width: 100%; }
 }
 .section {
-  min-height: 100vh;
+  min-height: 100svh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -140,6 +145,8 @@
 }
 /* title lockup: a big bold word with a handwritten word written across its lower edge (see script-word.tsx) */
 .parallax__title--lockup { position: relative; display: inline-block; padding: 0; font-size: clamp(2rem, 10.8vw, 12rem); transform: translateY(-16svh); }
+/* phones: a bigger title (the desktop size is tuned for a wide screen) */
+@media (max-width: 767px) { .parallax__title--lockup { font-size: 19vw; transform: translateY(-14svh); } }
 .parallax__script { position: absolute; right: 2%; bottom: -.24em; font-size: .92em; text-transform: none; transform: rotate(-4deg); filter: drop-shadow(0 .03em .05em rgba(0, 0, 0, .55)); }
 .parallax__fade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(0,0,0,.25), transparent 30%), linear-gradient(to top, #0e0d0b, rgba(14,13,11,0) 42%); }
 .parallax__hint {
@@ -148,3 +155,91 @@
   font: 500 clamp(.72rem, 1.1vw, .95rem) / 1 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.8);
 }
 .parallax__hint i { display: block; width: 1px; height: 28px; background: linear-gradient(rgba(255,255,255,.8), transparent); }
+/* ───────── Sterling Gate kinetic navigation (scoped to .sg-nav) ───────── */
+.sg-nav {
+  --color-primary: #d1182b;
+  --color-dark: #131313;
+  --color-neutral-100: #f5f5f5;
+  --color-neutral-200: #e5e5e5;
+  --color-neutral-300: #d4d4d4;
+  --color-neutral-800: #262626;
+  --size-container: 1400px;
+  --container-padding: 2em;
+  --gap: 1.5em;
+  --cubic-default: cubic-bezier(0.65, 0.05, 0, 1);
+  font-family: Inter, system-ui, sans-serif;
+}
+.sg-nav .site-header-wrapper { position: fixed; inset: 0 0 auto 0; z-index: 70; pointer-events: none; }
+.sg-nav .sg-container { max-width: var(--size-container); margin: 0 auto; padding: 1.25em var(--container-padding); }
+.sg-nav .nav-row { display: flex; align-items: center; justify-content: flex-end; gap: 1em; }
+.sg-nav .nav-logo { flex: none; pointer-events: auto; margin-right: auto; display: block; padding: .2rem 0; }
+.sg-nav .nav-logo img { display: block; height: 5.6rem; width: auto; max-width: none; transform-origin: 0% 50%; transition: transform .6s var(--cubic-default); filter: drop-shadow(0 2px 10px rgba(0,0,0,.45)); }
+.sg-nav .nav-logo:hover img, .sg-nav .nav-logo:focus-visible img { transform: scale(1.22); }
+@media (max-width: 767px) { .sg-nav .nav-logo img { height: 4.2rem; } }
+.sg-nav .nav-close-btn { width: 3.2rem; height: 3.2rem; padding: 0; justify-content: center; }
+.sg-nav .hb { position: relative; display: block; flex: none; width: 22px; height: 14px; }
+.sg-nav .hb-line { position: absolute; left: 0; width: 22px; height: 2px; border-radius: 2px; background: currentColor; }
+.sg-nav .hb-1 { top: 2px; }
+.sg-nav .hb-2 { top: 10px; }
+.sg-nav .nav-toggle-label { margin: 0; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.7); mix-blend-mode: difference; }
+.sg-nav .nav-close-btn {
+  pointer-events: auto; display: inline-flex; align-items: center; gap: .75em; cursor: pointer;
+  padding: .7em 1.1em .7em 1.3em; border-radius: 999px; border: 1px solid rgba(255,255,255,.25);
+  background: rgba(19,19,19,.55); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  color: var(--color-neutral-100); transition: background .4s var(--cubic-default), border-color .4s var(--cubic-default);
+}
+.sg-nav .nav-close-btn:hover { background: #d1182b; border-color: transparent; color: #fff; }
+.sg-nav .nav-btn-text { display: block; height: 1.25em; overflow: hidden; line-height: 1.25em; }
+.sg-nav .p-large { display: block; font-size: .95rem; font-weight: 500; height: 1.25em; }
+.sg-nav .menu-button-icon { width: 1em; height: 1em; display: grid; place-items: center; }
+.sg-nav .menu-button-icon svg { width: 100%; height: 100%; }
+
+.sg-nav .fullscreen-menu-container { position: fixed; inset: 0; z-index: 60; pointer-events: none; }
+.sg-nav .nav-overlay-wrapper { position: absolute; inset: 0; pointer-events: none; }
+.sg-nav .nav-overlay-wrapper[style*="display: block"] { pointer-events: auto; }
+.sg-nav .overlay { position: absolute; inset: 0; background: rgba(0,0,0,.55); cursor: pointer; }
+.sg-nav .menu-content { position: absolute; top: 2.5svh; right: 2.5svh; bottom: 2.5svh; width: min(calc(100% - 5svh), 44rem); overflow: hidden; border-radius: 28px; isolation: isolate; color: var(--color-neutral-100); }
+.sg-nav .menu-bg, .sg-nav .backdrop-layer { position: absolute; inset: 0; }
+.sg-nav .backdrop-layer.first { background: #000; }
+.sg-nav .backdrop-layer.second { background: #000; }
+.sg-nav .backdrop-layer.third { background: #000; }
+.sg-nav .ambient-background-shapes { position: absolute; inset: 0; overflow: hidden; color: var(--color-primary); opacity: .35; pointer-events: none; }
+.sg-nav .ambient-background-shapes > div { position: absolute; right: -8%; bottom: -8%; width: 80%; aspect-ratio: 1; visibility: hidden; }
+.sg-nav .ambient-background-shapes svg { width: 100%; height: 100%; overflow: visible; }
+.sg-nav .menu-content-wrapper { position: relative; height: 100%; display: flex; align-items: center; padding: 6em var(--container-padding) 3em 3.5em; }
+.sg-nav .menu-list { list-style: none; margin: 0; padding: 0; width: 100%; }
+.sg-nav .menu-list-item { position: relative; overflow: hidden; }
+.sg-nav .nav-link { position: relative; display: block; padding: .18em 0; border-bottom: 1px solid rgba(255,255,255,.14); color: inherit; text-decoration: none; }
+.sg-nav .nav-link-text { position: relative; z-index: 1; display: block; margin: 0; font-size: clamp(2.4rem, 6vw, 4.6rem); font-weight: 300; letter-spacing: -.03em; line-height: 1.1; transition: transform .6s var(--cubic-default), color .4s; }
+.sg-nav .nav-link-hover-bg { position: absolute; inset: 0; background: var(--color-primary); transform: scaleY(0); transform-origin: bottom; transition: transform .5s var(--cubic-default); }
+.sg-nav .menu-list-item:hover .nav-link-hover-bg, .sg-nav .nav-link:focus-visible .nav-link-hover-bg { transform: scaleY(1); }
+.sg-nav .menu-list-item:hover .nav-link-text, .sg-nav .nav-link:focus-visible .nav-link-text { transform: translateX(.35em); color: #fff; }
+@media (max-width: 767px) {
+  .sg-nav .sg-container { padding: .9em 1em; }
+  .sg-nav .menu-content { top: 8px; right: 8px; bottom: 8px; left: 8px; width: auto; border-radius: 22px; }
+  .sg-nav .menu-content-wrapper { padding: 5.5em 1.25em 2em 1.5em; }
+  .sg-nav .nav-link-text { font-size: clamp(2rem, 11vw, 3rem); }
+  .sg-nav .ambient-background-shapes > div { width: 110%; }
+  .sg-nav .nav-toggle-label { display: none; }
+}
+
+
+/* ───────── every-phone safety net (notches, rounded corners, short and narrow screens) ───────── */
+@media (max-width: 767px) {
+  /* keep the fixed logo / menu button out of the notch and the rounded corners */
+  .sg-nav .sg-container { padding-top: calc(.9em + env(safe-area-inset-top, 0px)); padding-left: calc(1em + env(safe-area-inset-left, 0px)); padding-right: calc(1em + env(safe-area-inset-right, 0px)); }
+  .sg-nav .menu-content { top: max(8px, env(safe-area-inset-top, 0px)); bottom: max(8px, env(safe-area-inset-bottom, 0px)); left: max(8px, env(safe-area-inset-left, 0px)); right: max(8px, env(safe-area-inset-right, 0px)); }
+  .sg-nav .menu-content-wrapper { padding-top: calc(5.5em + env(safe-area-inset-top, 0px)); padding-bottom: calc(2em + env(safe-area-inset-bottom, 0px)); overflow-y: auto; }
+}
+/* narrow phones (320–359px: iPhone SE 1st gen, small Androids) */
+@media (max-width: 359px) {
+  .sg-nav .nav-logo img { height: 3.4rem; }
+  .sg-nav .nav-close-btn { width: 2.9rem; height: 2.9rem; }
+  .sg-nav .nav-link-text { font-size: 2.1rem; }
+}
+/* short phones (iPhone SE / mini, landscape-ish heights, browser bars showing) */
+@media (max-width: 767px) and (max-height: 700px) {
+  .sg-nav .menu-content-wrapper { align-items: flex-start; }
+  .sg-nav .nav-link-text { font-size: clamp(1.8rem, 9vw, 2.4rem); }
+  .sg-nav .nav-link { padding: .1em 0; }
+}

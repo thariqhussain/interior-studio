@@ -53,7 +53,7 @@ const CSS = `
 .hv-top { display: flex; align-items: flex-end; padding-bottom: clamp(14px, 2.4vh, 28px); }
 .hv-bottom { display: flex; align-items: center; justify-content: center; }
 .hv-slot { position: relative; }
-.hv-slot > .hv-text { position: absolute; left: 0; bottom: 0; pointer-events: none; visibility: hidden; transition: visibility 0s linear .7s; }
+.hv-slot > .hv-text { position: absolute; left: 0; right: 0; text-align: center; bottom: 0; pointer-events: none; visibility: hidden; transition: visibility 0s linear .7s; }
 .hv-bottom .hv-slot > .hv-text { top: 50%; bottom: auto; transform: translateY(-50%); }
 .hv-slot > .hv-text[data-on] { visibility: visible; transition-delay: 0s; }
 /* heading: plain solid text in the default system font – nothing here forces a repaint */
@@ -83,6 +83,34 @@ const CSS = `
 /* before anything has been played, Next breathes softly to say "press me" */
 .hv-next[data-idle]::after { content: ""; position: absolute; inset: -5px; border-radius: 999px; border: 1px solid rgba(255,255,255,.55); animation: hv-ping 2.2s cubic-bezier(.22,1,.36,1) infinite; pointer-events: none; }
 @keyframes hv-ping { 0% { opacity: .9; transform: scale(.96); } 100% { opacity: 0; transform: scale(1.12); } }
+/* phones: the heading scales with the screen width, so the longest room name always fits */
+/* phones: heading + description at the top, the whole video (16:9, nothing cropped) centred below, buttons at the bottom */
+.hv-p-top { display: none; }
+@media (max-width: 767px) {
+  .hv-h { font-size: 9.2vw; }
+  .hv-clip { grid-template-rows: auto auto auto; align-content: center; }
+  .hv-top { align-items: flex-end; padding: 0 22px 14px; }
+  .hv-top .hv-slot { height: calc(9.2vw + 5.2rem) !important; }
+  .hv-top .hv-slot > .hv-text { top: auto; bottom: 0; }
+  .hv-p-top { display: block; margin: 12px auto 0; max-width: 30em; color: rgba(255,255,255,.72); font-size: .95rem; line-height: 1.5; white-space: normal; }
+  .hv-band { aspect-ratio: 16 / 9; }
+  .hv-desc { display: none; }
+  .hv-bottom { padding: 18px 0 0; }
+  .hv-p-top { font-size: clamp(.82rem, 3.7vw, .95rem); }
+}
+/* narrow phones: keep the buttons and heading inside the screen */
+@media (max-width: 359px) {
+  .hv-h { font-size: 8.6vw; }
+  .hv-top { padding-left: 14px; padding-right: 14px; }
+  .hv-next { padding-left: 16px; }
+  .hv-next small { display: none; }
+}
+/* short phones: tighter spacing so the whole group still fits above the bottom bar */
+@media (max-width: 767px) and (max-height: 640px) {
+  .hv-top .hv-slot { height: calc(9.2vw + 4.6rem) !important; }
+  .hv-p-top { margin-top: 8px; font-size: .8rem; line-height: 1.4; }
+  .hv-bottom { padding-top: 12px; }
+}
 @media (prefers-reduced-motion: reduce) { .hv-vid, .hv-p, .hv-btn { transition: none; } .hv-next[data-idle]::after { animation: none; } }
 `
 
@@ -258,6 +286,7 @@ export default function Hero() {
               {ROOMS.map((r, i) => (
                 <div key={r.n} className="hv-text" data-on={live(i)} aria-hidden={live(i) === undefined}>
                   <h2 className="hv-h">{r.title}</h2>
+                  <p className="hv-p hv-p-top">{r.caption}</p>
                 </div>
               ))}
             </div>

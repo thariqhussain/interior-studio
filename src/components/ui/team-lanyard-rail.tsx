@@ -947,7 +947,9 @@ export function TeamLanyardRail({
   const showingBack = current !== null && current === flipped;
   const centerIndex = size.carousel ? (active ?? live.current.carouselIndex) : null;
   const line1 = person ? `${person.name} — ${person.role}` : caption;
-  const line2 = person ? (showingBack ? labels.back : labels.flip) : "";
+  const touchUi = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+  const line2raw = person ? (showingBack ? labels.back : labels.flip) : "";
+  const line2 = touchUi ? (showingBack ? "Tap again to turn it back" : "Tap the badge to flip it") : line2raw;
 
   return (
     <section

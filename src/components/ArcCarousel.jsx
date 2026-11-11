@@ -108,15 +108,28 @@ export default function ArcCarousel() {
     const measure = () => {
       const W = el.clientWidth
       const H = el.clientHeight
-      const cardH = H * 0.22
+      // phones: the highlighted card is centred, its label sits underneath it (there is no room beside it)
+      const phone = W < 640
+      const cardH = H * (phone ? 0.19 : 0.22)
       const cardW = cardH * 1.62 // landscape
       const R = H * 0.84
       const step = (cardH * 1.02) / R // radians between neighbouring cards
-      const eqX = Math.max(cardW / 2 + 24, W * 0.27)
-      s.dims = { W, H, cardW, cardH, R, step, hubX: eqX - R, hubY: H / 2 }
+      const eqX = phone ? W / 2 : Math.max(cardW / 2 + 24, W * 0.27)
+      const hubY = phone ? H * 0.5 : H / 2
+      s.dims = { W, H, cardW, cardH, R, step, hubX: eqX - R, hubY, phone }
       if (labelBox.current) {
-        labelBox.current.style.left = eqX + (cardW / 2) * (1 + POP) + 32 + 'px'
-        labelBox.current.style.width = Math.max(150, W - eqX - (cardW / 2) * (1 + POP) - 40) + 'px'
+        const lb = labelBox.current.style
+        if (phone) {
+          lb.left = '24px'
+          lb.width = W - 48 + 'px'
+          lb.top = hubY + (cardH / 2) * (1 + POP) + 26 + 'px'
+          lb.transform = 'none'
+        } else {
+          lb.left = eqX + (cardW / 2) * (1 + POP) + 32 + 'px'
+          lb.width = Math.max(150, W - eqX - (cardW / 2) * (1 + POP) - 40) + 'px'
+          lb.top = ''
+          lb.transform = ''
+        }
       }
       cards.current.forEach((c) => {
         if (!c) return
@@ -152,6 +165,7 @@ export default function ArcCarousel() {
         const f = clamp(1 - ad * 1.2, 0, 1)
         const pop = 1 + POP * f * f * (3 - 2 * f)
         let vis = ad > 5 ? 0 : er // every card stays at full brightness; fades in as it slides
+        if (d0.phone && d > 0) vis *= clamp(1 - d * 1.15, 0, 1) // phones: the label sits under the front card, so the cards below it fade out
         if (openRef.current && ad < 0.5) vis = 0 // the viewer shows this project's image itself, so the wheel's copy steps aside
         c.style.transform = `translate3d(${x}px, ${y}px, 0) rotate(${a}rad) scale(${pop})`
         c.style.opacity = String(vis)
@@ -563,7 +577,7 @@ export default function ArcCarousel() {
                             <div className="mt-7 flex items-center gap-3">
                               <a
                                 href="#contact"
-                                onClick={(e) => { e.preventDefault(); setOpen(false); scrollToTarget('#contact') }}
+                                onClick={(e) => { e.preventDefault(); setOpen(false); scrollToTarget(document.querySelector('#contact') ? '#contact' : '#more') }} // phones have no contact section yet
                                 className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-medium text-black transition hover:bg-white/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
                               >
                                 Start a similar project

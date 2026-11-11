@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowUpRight, Check, FileText, Heart, LifeBuoy, Mail, Send, Shield } from "lucide-react";
+import { ArrowUpRight, Check, FileText, Heart, MapPin, Mail, Phone, Send, Shield } from "lucide-react";
+import { scrollToTarget } from "@/lib/useSmoothScroll";
 import { cn } from "@/lib/utils";
 
 export interface FooterLink {
@@ -9,7 +10,7 @@ export interface FooterLink {
     href: string;
 }
 
-export type FooterIcon = "mail" | "arrow" | "github" | "globe" | "shield" | "doc" | "support";
+export type FooterIcon = "mail" | "arrow" | "instagram" | "phone" | "pin" | "shield" | "doc";
 
 export interface FooterPill extends FooterLink {
     icon?: FooterIcon;
@@ -41,16 +42,11 @@ export interface FooterData {
     handle?: FooterLink;
 }
 
-const GlobeIcon = ({ className }: { className?: string }) => (
+const InstagramIcon = ({ className }: { className?: string }) => (
     <svg aria-hidden="true" viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="9" />
-        <path d="M3 12h18M12 3c2.6 2.6 4 5.7 4 9s-1.4 6.4-4 9c-2.6-2.6-4-5.7-4-9s1.4-6.4 4-9z" />
-    </svg>
-);
-
-const GithubIcon = ({ className }: { className?: string }) => (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className={className} fill="currentColor">
-        <path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49v-1.7c-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.5-1.11-1.5-.91-.63.07-.62.07-.62 1 .07 1.53 1.05 1.53 1.05.9 1.56 2.35 1.11 2.92.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.72 0 0 .84-.28 2.75 1.05A9.4 9.4 0 0 1 12 6.84c.85 0 1.7.12 2.5.35 1.9-1.33 2.74-1.05 2.74-1.05.55 1.42.2 2.46.1 2.72.64.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.8-4.57 5.05.36.32.68.94.68 1.9v2.82c0 .27.18.6.69.49A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2z" />
+        <rect x="3" y="3" width="18" height="18" rx="5" />
+        <circle cx="12" cy="12" r="4" />
+        <circle cx="17.2" cy="6.8" r="0.6" fill="currentColor" />
     </svg>
 );
 
@@ -59,11 +55,11 @@ function Icon({ name, className }: { name?: FooterIcon; className?: string }) {
     switch (name) {
         case "mail": return <Mail aria-hidden="true" className={c} />;
         case "arrow": return <ArrowUpRight aria-hidden="true" className={c} />;
-        case "github": return <GithubIcon className={c} />;
-        case "globe": return <GlobeIcon className={c} />;
+        case "instagram": return <InstagramIcon className={c} />;
+        case "phone": return <Phone aria-hidden="true" className={c} />;
+        case "pin": return <MapPin aria-hidden="true" className={c} />;
         case "shield": return <Shield aria-hidden="true" className={c} />;
         case "doc": return <FileText aria-hidden="true" className={c} />;
-        case "support": return <LifeBuoy aria-hidden="true" className={c} />;
         default: return null;
     }
 }
@@ -73,11 +69,12 @@ const isExternal = (href: string) => /^https?:/.test(href);
 /** Link that ignores placeholder "#" hrefs and opens external URLs in a new tab. */
 function Anchor({ href, className, children, label }: { href: string; className?: string; children: ReactNode; label?: string }) {
     const placeholder = !href || href === "#";
+    const inPage = href.length > 1 && href.startsWith("#");
     return (
         <a
             href={href || "#"}
             aria-label={label}
-            onClick={placeholder ? (e) => e.preventDefault() : undefined}
+            onClick={placeholder ? (e) => e.preventDefault() : inPage ? (e) => { e.preventDefault(); scrollToTarget(href); } : undefined}
             className={className}
             {...(isExternal(href) ? { target: "_blank", rel: "noopener noreferrer" } : {})}
         >
@@ -164,7 +161,8 @@ export default function SiteFooter({ data }: { data: FooterData }) {
                         </Anchor>
                     ))}
                 </nav>
-                <div className="flex shrink-0 items-center gap-3 font-mono text-[11px] uppercase tracking-[0.2em] text-white/55">
+                {/* mr: the fixed menu button sits over the top-right corner of the page */}
+                <div className="hidden shrink-0 sm:mr-40 lg:mr-72 items-center gap-3 font-mono text-[11px] uppercase tracking-[0.2em] text-white/55 sm:flex">
                     {data.mark && <span>{data.mark}</span>}
                     {data.timeZone && time && (
                         <span className="tabular-nums">
@@ -224,7 +222,7 @@ export default function SiteFooter({ data }: { data: FooterData }) {
             </div>
 
             {/* bottom bar */}
-            <div className="relative z-10 flex flex-col items-center justify-between gap-3 border-t border-white/10 px-6 py-4 font-mono text-[10px] uppercase tracking-[0.2em] text-white/50 sm:flex-row sm:px-10 sm:py-5">
+            <div className="relative z-10 flex flex-col items-center justify-between gap-3 border-t border-white/10 px-6 py-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] font-mono text-[10px] uppercase tracking-[0.2em] text-white/50 sm:flex-row sm:px-10 sm:py-5">
                 <span>{data.copyright}</span>
                 {(data.credit || data.handle) && (
                     <span className="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-white/10 bg-white/[0.05] px-3.5 py-1.5 text-[9px] tracking-[0.12em] backdrop-blur-md sm:px-4 sm:text-[10px] sm:tracking-[0.2em]">

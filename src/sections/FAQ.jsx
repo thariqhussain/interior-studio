@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { ChevronDown } from 'lucide-react'
 
 /* Frequently asked questions – edit the list below. The answers are drafted to match the rest of the
-   site (the Process timeline, Services and the 12-month aftercare); confirm them with the studio. */
+   site (the studio's services, timeline and 12-month aftercare); confirm them with the studio. */
 const FAQS = [
   {
     q: 'How much does an interior design project cost?',

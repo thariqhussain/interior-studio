@@ -2,61 +2,59 @@ import SiteFooter from '@/components/ui/site-footer'
 
 /* =====================================================================
    FOOTER DATA – everything the footer shows lives here.
-   These are the values carried over from the previous footer (a template with the author's
-   placeholder details: "kedhareswer", 21st.dev links, hello@example.com…). Replace them with the
-   studio's real details, and delete any line you do not want – the footer hides what is missing.
+   PLACEHOLDERS: the email, phone number, address link, Instagram handle and booking link below are examples –
+   replace them with the studio's real details, and delete any line you do not want (the footer hides what is missing).
+   Links that start with "#" glide to that section of the page.
    ===================================================================== */
-const ME = 'kedhareswer'
-const HOME = `https://21st.dev/@${ME}`
-const GITHUB = `https://github.com/${ME}`
 const EMAIL = 'hello@example.com'
+const PHONE = '+910000000000'
+const INSTAGRAM = 'https://instagram.com/your-studio'
+const MAP = 'https://maps.google.com/?q=your+studio+address'
+const BOOKING_URL = 'https://cal.com/your-studio' // same link as the Contact section's "Book a call"
 
 const FOOTER = {
-  brand: 'kedhar.', // small wordmark, top-left
-  heading: 'Ready to begin?',
+  brand: 'Elena Voss.', // small wordmark, top-left
+  heading: 'Let’s make it home.',
 
-  // chip above the heading (was "status")
-  status: { label: 'open for collaborations', href: `mailto:${EMAIL}` },
+  // chip above the heading
+  status: { label: 'now booking projects for 2026', href: `mailto:${EMAIL}` },
 
-  // top bar category links (were the "index" and "elsewhere" columns)
+  // top bar links (scroll to the sections of this page)
   nav: [
-    // index
-    { label: 'Components', href: HOME },
-    { label: 'Templates', href: HOME },
-    { label: 'Preloaders', href: HOME },
-    // elsewhere
-    { label: 'GitHub', href: GITHUB },
-    { label: '21st.dev', href: HOME },
-    { label: 'Source', href: `${GITHUB}/21stdev-my-components` },
+    { label: 'Work', href: '#projects' },
+    { label: 'Services', href: '#services' },
+    { label: 'Before & After', href: '#before-after' },
+    { label: 'Team', href: '#team' },
+    { label: 'FAQ', href: '#faq' },
+    { label: 'Contact', href: '#contact' },
   ],
 
-  // top-right: tag + live clock
-  mark: 'KS / 2026',
+  // top-right: tag + live clock (the studio's local time)
+  mark: 'Interior Studio',
   timeZone: 'Asia/Kolkata',
   timeLabel: 'IST',
 
-  // the two big pills (were the "say hi" bubble and the "work." link)
+  // the two big pills
   primary: [
-    { label: 'Say hi', href: `mailto:${EMAIL}`, icon: 'mail' },
-    { label: 'Work', href: HOME, icon: 'arrow' },
+    { label: 'Book a consultation', href: BOOKING_URL, icon: 'mail' },
+    { label: 'View our work', href: '#projects', icon: 'arrow' },
   ],
 
-  // email sign-up (was the newsletter pill). Connect `onSubscribe` to your email service.
-  newsletter: { label: 'new components, once a month', placeholder: 'your@email' },
+  // email sign-up. Connect `onSubscribe` to your email service.
+  newsletter: { label: 'design notes & new projects, once a month', placeholder: 'your@email' },
 
-  // small pills (were "privacy", "terms" and the GitHub / 21st.dev social icons)
+  // small pills
   secondary: [
+    { label: 'Instagram', href: INSTAGRAM, icon: 'instagram' },
+    { label: 'Call us', href: `tel:${PHONE}`, icon: 'phone' },
+    { label: 'Visit the studio', href: MAP, icon: 'pin' },
     { label: 'Privacy Policy', href: '#', icon: 'shield' },
     { label: 'Terms of Service', href: '#', icon: 'doc' },
-    { label: 'Support', href: `mailto:${EMAIL}`, icon: 'support' },
-    { label: 'GitHub', href: GITHUB, icon: 'github' },
-    { label: '21st.dev', href: HOME, icon: 'globe' },
   ],
 
   // bottom bar
-  copyright: '© 2026 Kedhareswer',
-  credit: 'designed & built by hand',
-  handle: { label: `@${ME}`, href: HOME },
+  copyright: '© 2026 Elena Voss Interior Studio',
+  credit: 'designed to be lived in',
 }
 
 export default function Footer() {

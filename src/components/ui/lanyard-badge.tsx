@@ -37,6 +37,8 @@ export interface LanyardBadgeProps {
   strapLabel?: string
   /** Strap colour, #rrggbb. */
   strapColor?: string
+  /** Colour of the ribbon only (defaults to `strapColor`, which also colours parts of the built-in card). */
+  ribbonColor?: string
   /** Ornament and print colour, on the strap and the built-in card. */
   inkColor?: string
   /** Built-in card stock colour. */
@@ -265,6 +267,7 @@ export default function LanyardBadge({
   strapText = "the future is handmade",
   strapLabel = "DESIGN WEEK 2026",
   strapColor = "#141312",
+  ribbonColor,
   inkColor = "#b59a6c",
   cardColor = "#e8dfcc",
   flipButton = true,
@@ -290,9 +293,10 @@ export default function LanyardBadge({
   const ringR = Math.max(7, Math.round(cw * 0.036))
   const clipH = Math.round(cw * 0.1)
 
-  const look = React.useRef({ strapText, strapLabel, strapColor, inkColor })
-  look.current = { strapText, strapLabel, strapColor, inkColor }
-  const lookKey = [strapText, strapLabel, strapColor, inkColor].join("|")
+  const ribbon = ribbonColor ?? strapColor
+  const look = React.useRef({ strapText, strapLabel, strapColor: ribbon, inkColor })
+  look.current = { strapText, strapLabel, strapColor: ribbon, inkColor }
+  const lookKey = [strapText, strapLabel, ribbon, inkColor].join("|")
 
   React.useEffect(() => {
     const root = rootRef.current
