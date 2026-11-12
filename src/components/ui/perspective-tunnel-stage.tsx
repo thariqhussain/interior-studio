@@ -84,6 +84,7 @@ function useCameraParallax(enabled: boolean) {
     useEffect(() => {
         if (!enabled) return;
         const onMove = (e: PointerEvent) => {
+            if (e.pointerType !== "mouse") return; // a finger is not a mouse: no drift on touch screens
             rawX.set((e.clientX / window.innerWidth - 0.5) * 2);
             rawY.set((e.clientY / window.innerHeight - 0.5) * 2);
         };

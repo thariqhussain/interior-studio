@@ -63,6 +63,9 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: system-ui, sans-serif; }
   /* every phone: no font inflation after rotating, no grey tap flash, no 300ms double-tap-zoom delay, nothing wider than the screen */
+  /* a dark page behind everything: when a phone's address bar slides away the screen gets taller than the 100svh pinned stages, and
+     the strip they leave was showing the browser's default WHITE. Now it is dark, the same as the sections above it. */
+  html, body { background: #0b0b0c; }
   html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; overflow-x: clip; }
   body { overflow-x: clip; max-width: 100%; }
   a, button, [role="button"], [role="tab"], input { touch-action: manipulation; }
@@ -176,7 +179,8 @@
 .sg-nav .nav-row { display: flex; align-items: center; justify-content: flex-end; gap: 1em; }
 .sg-nav .nav-logo { flex: none; pointer-events: auto; margin-right: auto; display: block; padding: .2rem 0; }
 .sg-nav .nav-logo img { display: block; height: 5.6rem; width: auto; max-width: none; transform-origin: 0% 50%; transition: transform .6s var(--cubic-default); filter: drop-shadow(0 2px 10px rgba(0,0,0,.45)); }
-.sg-nav .nav-logo:hover img, .sg-nav .nav-logo:focus-visible img { transform: scale(1.22); }
+.sg-nav .nav-logo:focus-visible img { transform: scale(1.22); }
+@media (hover: hover) { .sg-nav .nav-logo:hover img { transform: scale(1.22); } }
 @media (max-width: 767px) { .sg-nav .nav-logo img { height: 4.2rem; } }
 .sg-nav .nav-close-btn { width: 3.2rem; height: 3.2rem; padding: 0; justify-content: center; }
 .sg-nav .hb { position: relative; display: block; flex: none; width: 22px; height: 14px; }
@@ -190,7 +194,7 @@
   background: rgba(19,19,19,.55); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
   color: var(--color-neutral-100); transition: background .4s var(--cubic-default), border-color .4s var(--cubic-default);
 }
-.sg-nav .nav-close-btn:hover { background: #d1182b; border-color: transparent; color: #fff; }
+@media (hover: hover) { .sg-nav .nav-close-btn:hover { background: #d1182b; border-color: transparent; color: #fff; } }
 .sg-nav .nav-btn-text { display: block; height: 1.25em; overflow: hidden; line-height: 1.25em; }
 .sg-nav .p-large { display: block; font-size: .95rem; font-weight: 500; height: 1.25em; }
 .sg-nav .menu-button-icon { width: 1em; height: 1em; display: grid; place-items: center; }
@@ -214,8 +218,10 @@
 .sg-nav .nav-link { position: relative; display: block; padding: .18em 0; border-bottom: 1px solid rgba(255,255,255,.14); color: inherit; text-decoration: none; }
 .sg-nav .nav-link-text { position: relative; z-index: 1; display: block; margin: 0; font-size: clamp(2.4rem, 6vw, 4.6rem); font-weight: 300; letter-spacing: -.03em; line-height: 1.1; transition: transform .6s var(--cubic-default), color .4s; }
 .sg-nav .nav-link-hover-bg { position: absolute; inset: 0; background: var(--color-primary); transform: scaleY(0); transform-origin: bottom; transition: transform .5s var(--cubic-default); }
-.sg-nav .menu-list-item:hover .nav-link-hover-bg, .sg-nav .nav-link:focus-visible .nav-link-hover-bg { transform: scaleY(1); }
-.sg-nav .menu-list-item:hover .nav-link-text, .sg-nav .nav-link:focus-visible .nav-link-text { transform: translateX(.35em); color: #fff; }
+.sg-nav .nav-link:focus-visible .nav-link-hover-bg { transform: scaleY(1); }
+@media (hover: hover) { .sg-nav .menu-list-item:hover .nav-link-hover-bg { transform: scaleY(1); } }
+.sg-nav .nav-link:focus-visible .nav-link-text { transform: translateX(.35em); color: #fff; }
+@media (hover: hover) { .sg-nav .menu-list-item:hover .nav-link-text { transform: translateX(.35em); color: #fff; } }
 @media (max-width: 767px) {
   .sg-nav .sg-container { padding: .9em 1em; }
   .sg-nav .menu-content { top: 8px; right: 8px; bottom: 8px; left: 8px; width: auto; border-radius: 22px; }
@@ -255,4 +261,13 @@ body { overscroll-behavior-y: none; } /* no rubber-band / pull-to-refresh bounce
   *, *::before, *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
   .sg-nav .nav-close-btn { background: rgba(19,19,19,.78); }
   .hv-prev { background: rgba(40,40,42,.85); }
+}
+
+/* phones, preloader: the only CSS animation left is the shooting stars. Twinkling stars, drifting mist and the aurora are switched
+   off (the stars stay visible, just still; the mist and aurora are hidden). */
+@media (max-width: 767px) {
+  .sky-stars { animation: none; opacity: .8; }
+  .sky-mist, .sky-aurora { animation: none; display: none; }
+  .parallax *, .parallax *::before, .parallax *::after { transition: none !important; }
+  .parallax *:not(.sky-shoot), .parallax *:not(.sky-shoot)::before, .parallax *:not(.sky-shoot)::after { animation: none !important; }
 }

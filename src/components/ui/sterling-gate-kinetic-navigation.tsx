@@ -144,7 +144,8 @@ export function Component({ links = LINKS }: { links?: NavLink[] }) {
     const cleanups: Array<() => void> = []
     items.forEach((li) => {
       const a = li.querySelector<HTMLAnchorElement>("a")!
-      const enter = () => showShape(li.dataset.shape || null)
+      const canHover = window.matchMedia("(hover: hover)").matches
+      const enter = () => { if (canHover) showShape(li.dataset.shape || null) }
       const click = (e: Event) => {
         e.preventDefault()
         const target = a.getAttribute("href")!

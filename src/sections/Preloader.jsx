@@ -9,7 +9,7 @@ import { ParallaxComponent } from '@/components/ui/parallax-scrolling'
 export default function Preloader() {
   const ref = useRef(null)
   return (
-    <section id="preloader" ref={ref} style={{ height: '280svh' }}>
+    <section id="preloader" ref={ref} style={{ height: '280svh', background: '#0e0d0b' }}>
       <div className="sticky top-0 h-[100svh] overflow-hidden">
         <ParallaxComponent triggerRef={ref} title="YEAH" script="it's me" travel={0.9} />
       </div>

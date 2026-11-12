@@ -80,7 +80,7 @@ export default function Manifesto() {
   // beat 4 – FeaturedProjects rises over the stage; its top line reaches the stats and pushes them up, so they stay just
   // above the line instead of being covered. The line's height (svh from the top of the screen) is linear in the scroll
   // because the stage is pinned and the next section is pulled up by exactly RISE_SVH.
-  // phones: there is no room above the stats for the rising edge to push them through, so they fade out as the edge arrives
+  // phones: the stats fade out as the next section arrives (keeping them on screen while it rises made scrolling lag)
   const isPhone = typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
   const statsFade = useTransform(rawProgress, [RISE_START, RISE_START + (1 - RISE_START) * 0.4], isPhone ? [1, 0] : [1, 1])
   const edge = useTransform(rawProgress, (r) => 100 * (1 - Math.min(1, Math.max(0, (r - RISE_START) / (1 - RISE_START)))))
@@ -111,7 +111,7 @@ export default function Manifesto() {
   const sx = useSpring(mx, { stiffness: 90, damping: 20, mass: 0.6 })
   const sy = useSpring(my, { stiffness: 90, damping: 20, mass: 0.6 })
   useEffect(() => {
-    if (reduced || !live) return // no mouse tracking (and no spring updates) while the section is off screen
+    if (reduced || !live || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return // no mouse tracking (and none at all on touch screens) (and no spring updates) while the section is off screen
     const move = (e) => {
       mx.set(e.clientX / window.innerWidth - 0.5)
       my.set(e.clientY / window.innerHeight - 0.5)

@@ -26,7 +26,7 @@ export default function TabletSite() {
     <main>
       <KineticNav links={LINKS} />
       <Preloader />
-      <div style={{ marginTop: '-280svh' }}>
+      <div style={{ marginTop: '-280svh', background: '#0d0d0e' }}>
         <Hero />
       </div>
       <Manifesto />

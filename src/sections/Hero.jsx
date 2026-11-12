@@ -73,13 +73,17 @@ const CSS = `
 .hv-btn svg { width: 18px; height: 18px; flex: none; transition: transform .3s cubic-bezier(.22,1,.36,1); }
 .hv-btn:active { transform: scale(.96); }
 .hv-prev { width: 48px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.16); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+@media (hover: hover) {
 .hv-prev:hover { background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.3); }
 .hv-prev:hover svg { transform: translateX(-2px); }
+}
 .hv-next { position: relative; padding: 0 8px 0 22px; background: #fff; color: #0d0d0e; border: 0; font: 600 14px / 1 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; letter-spacing: -.01em; }
 .hv-next small { font-weight: 500; font-size: 13px; color: rgba(13,13,14,.5); }
 .hv-next b { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 99px; background: #0d0d0e; color: #fff; transition: background-color .3s; }
+@media (hover: hover) {
 .hv-next:hover b svg { transform: translateX(2px); }
 .hv-next:hover { background: #ffe9dc; }
+}
 /* before anything has been played, Next breathes softly to say "press me" */
 .hv-next[data-idle]::after { content: ""; position: absolute; inset: -5px; border-radius: 999px; border: 1px solid rgba(255,255,255,.55); animation: hv-ping 2.2s cubic-bezier(.22,1,.36,1) infinite; pointer-events: none; }
 @keyframes hv-ping { 0% { opacity: .9; transform: scale(.96); } 100% { opacity: 0; transform: scale(1.12); } }

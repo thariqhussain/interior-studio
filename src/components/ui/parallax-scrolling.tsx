@@ -155,7 +155,8 @@ export function ParallaxComponent({ triggerRef, title = 'ELENA VOSS', script, sc
     }));
     const rest = () => layers.forEach(({ el, base }) => { if (el) el.style.translate = base ? `0 ${base}px` : ''; });
     rest();
-    if (reduced) return;
+    // touch screens: the layers stay still (a finger on the screen is not a mouse pointer)
+    if (reduced || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
 
     let tx = 0, ty = 0, x = 0, y = 0, raf = 0, visible = true;
     const frame = () => {
@@ -169,6 +170,7 @@ export function ParallaxComponent({ triggerRef, title = 'ELENA VOSS', script, sc
     };
     const kick = () => { if (!raf && visible) raf = requestAnimationFrame(frame); };
     const move = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') return;
       tx = (e.clientX / window.innerWidth - 0.5) * 2;
       ty = (e.clientY / window.innerHeight - 0.5) * 2;
       kick();
