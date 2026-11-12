@@ -25,7 +25,7 @@ export default function Contact() {
     <section id="contact" className="relative overflow-hidden bg-white max-lg:min-h-[100svh]">
       {/* text, left-aligned */}
       <div className="relative z-10 mx-auto max-w-7xl max-lg:pointer-events-none lg:flex lg:min-h-[100svh] lg:items-center">
-        <div className="px-6 pb-8 pt-24 text-left sm:px-10 lg:w-1/2 lg:py-24 lg:pl-12 lg:pr-8">
+        <div className="px-6 pb-8 pt-32 text-left sm:px-10 lg:w-1/2 lg:py-24 lg:pl-12 lg:pr-8">
           <p className="mb-5 text-xs font-medium uppercase tracking-[0.25em] text-neutral-500">
             Contact
           </p>

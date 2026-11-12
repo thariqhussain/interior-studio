@@ -150,7 +150,7 @@ export default function SiteFooter({ data }: { data: FooterData }) {
             <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_45%_at_50%_0%,rgba(255,255,255,0.07),transparent)]" />
 
             {/* top bar: brand · category links · mark + clock */}
-            <div className="relative z-10 flex items-center justify-between gap-6 border-b border-white/10 px-6 py-4 sm:px-10 sm:py-5">
+            <div className="relative z-10 flex items-center justify-between gap-6 border-b border-white/10 px-6 py-4 max-lg:hidden sm:px-10 sm:py-5">
                 <span className="shrink-0 text-lg font-semibold tracking-tight" style={{ fontFamily: '"Bricolage Grotesque", system-ui, sans-serif' }}>
                     {data.brand}
                 </span>
@@ -173,7 +173,7 @@ export default function SiteFooter({ data }: { data: FooterData }) {
             </div>
 
             {/* the same links, for small screens (the top bar hides them) */}
-            <nav aria-label="Footer (mobile)" className="relative z-10 flex flex-wrap justify-center gap-x-5 gap-y-1 px-6 pt-4 font-mono text-[10px] uppercase tracking-[0.2em] text-white/55 md:hidden">
+            <nav aria-label="Footer (mobile)" className="relative z-10 flex flex-wrap justify-center gap-x-5 gap-y-1 px-6 pt-28 font-mono text-[10px] uppercase tracking-[0.2em] text-white/55 lg:hidden">
                 {data.nav.map((l) => (
                     <Anchor key={l.label} href={l.href} className="transition-colors hover:text-white">
                         {l.label}

@@ -99,14 +99,14 @@ export const Component = ({
     <div
       ref={containerRef}
       className={cn(
-        "flex flex-col md:flex-row items-center justify-between min-h-[100svh] w-full p-8 md:p-24 overflow-hidden transition-colors duration-500",
+        "flex flex-col lg:flex-row items-center justify-between min-h-[100svh] w-full p-8 md:p-16 lg:p-24 overflow-hidden transition-colors duration-500",
         "bg-white dark:bg-[#050505]",
         className
       )}
     >
 
       {/* LEFT SIDE: HIGH CONTRAST MENU */}
-      <div className="z-20 w-full md:w-1/2">
+      <div className="z-20 w-full lg:w-1/2">
         <nav>
           <ul className="flex flex-col gap-8 md:gap-9">
             {items.map((item, index) => {
@@ -165,7 +165,7 @@ export const Component = ({
       </div>
 
       {/* RIGHT SIDE: SQUARE GRID (Sharp Squares) */}
-      <div className="relative w-full md:w-1/2 flex justify-center items-center mt-16 md:mt-0">
+      <div className="relative w-full lg:w-1/2 flex justify-center items-center mt-16 lg:mt-0">
         <div className="absolute w-[120%] h-[120%] bg-orange-500/10 dark:bg-orange-600/5 blur-[120px] rounded-full transition-opacity duration-1000" />
 
         <svg viewBox="0 0 500 500" className="w-[100%] max-w-[500px] h-auto z-10 drop-shadow-xl dark:drop-shadow-[0_0_60px_rgba(0,0,0,0.8)]">

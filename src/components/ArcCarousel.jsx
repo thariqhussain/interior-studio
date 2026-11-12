@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useMotionTemplate, useMotionValue, useReducedM
 import { ArrowUpRight, ChevronDown, ChevronUp, X } from 'lucide-react'
 import { ACCENT, PROJECTS } from '@/lib/projects'
 import { getScrollTarget, scrollToTarget, scrollToY } from '@/lib/useSmoothScroll'
+import { stableVH } from '@/lib/vh'
 
 /* =====================================================================
    Arc card carousel – pinned
@@ -103,6 +104,8 @@ export default function ArcCarousel() {
   useEffect(() => {
     const el = box.current
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    // touch screens: never auto-snap (the snap's scroll fights the browser's own momentum and made scrolling stutter / pull back)
+    const touch = window.matchMedia('(pointer: coarse)').matches
     const s = { cur: 0, target: 0, enter: 0, enterT: 0, dims: null, dragging: false, moved: 0, raf: 0, idle: 0 }
 
     const measure = () => {
@@ -110,7 +113,7 @@ export default function ArcCarousel() {
       const H = el.clientHeight
       // phones: the highlighted card is centred, its label sits underneath it (there is no room beside it)
       const phone = W < 640
-      const cardH = H * (phone ? 0.19 : 0.22)
+      const cardH = phone ? H * 0.19 : Math.min(H * 0.22, W * 0.17) // (the W term only bites on portrait tablets)
       const cardW = cardH * 1.62 // landscape
       const R = H * 0.84
       const step = (cardH * 1.02) / R // radians between neighbouring cards
@@ -143,7 +146,7 @@ export default function ArcCarousel() {
 
     // page scroll → entrance progress + which project the wheel is on
     const read = () => {
-      const vh = window.innerHeight
+      const vh = stableVH()
       const top = track.current.getBoundingClientRect().top
       s.enterT = reduced ? 1 : clamp(-top / (ENTER * vh), 0, 1)
       s.target = reduced ? 0 : clamp((-top - START * vh) / (SLOT * vh), 0, N - 1)
@@ -200,7 +203,7 @@ export default function ArcCarousel() {
     const kick = () => { if (!s.raf) s.raf = requestAnimationFrame(tick) }
 
     // absolute page position at which project k sits on the equator
-    const posOf = (k) => window.scrollY + track.current.getBoundingClientRect().top + (START + k * SLOT) * window.innerHeight
+    const posOf = (k) => window.scrollY + track.current.getBoundingClientRect().top + (START + k * SLOT) * stableVH()
     const scrollToSlot = (k) => {
       const y = posOf(clamp(k, 0, N - 1))
       if (reduced) window.scrollTo({ top: y, behavior: 'auto' })
@@ -237,12 +240,12 @@ export default function ArcCarousel() {
       kick()
       // the expanded card belongs to the pinned wheel: close it once the carousel is no longer pinned on screen
       const tr = track.current.getBoundingClientRect()
-      if (tr.top > 0 || tr.bottom < window.innerHeight) setOpen(false)
+      if (tr.top > 0 || tr.bottom < stableVH()) setOpen(false)
       clearTimeout(s.idle)
       // settle on a whole project while pinned: when scrolling stops, the project that has most of its tile on the highlight
       // line (the nearest one) is brought exactly onto it, so the wheel never rests between two projects
       s.idle = setTimeout(() => {
-        if (s.dragging || s.enterT < 1 || reduced) return
+        if (s.dragging || s.enterT < 1 || reduced || touch) return
         const frac = Math.abs(s.target - Math.round(s.target))
         if (s.target > 0.001 && s.target < N - 1 - 0.001 && frac > 0.01) scrollToSlot(Math.round(s.target))
       }, 70)
@@ -254,10 +257,10 @@ export default function ArcCarousel() {
       if (!near) return
       clearTimeout(s.wheelIdle)
       s.wheelIdle = setTimeout(() => {
-        if (s.dragging || s.enterT < 1 || reduced) return
+        if (s.dragging || s.enterT < 1 || reduced || touch) return
         const tr = track.current.getBoundingClientRect()
-        if (tr.top > 0 || tr.bottom < window.innerHeight) return // only while the carousel is pinned
-        const vh = window.innerHeight
+        if (tr.top > 0 || tr.bottom < stableVH()) return // only while the carousel is pinned
+        const vh = stableVH()
         const topAtTarget = tr.top - (getScrollTarget() - window.scrollY) // where the track's top will be when the glide ends
         const t = clamp((-topAtTarget - START * vh) / (SLOT * vh), 0, N - 1)
         const k = Math.round(t)
@@ -286,7 +289,7 @@ export default function ArcCarousel() {
       startY = e.clientY
       s.moved += Math.abs(dy)
       // dragging the cards up advances: translate the drag into page scroll
-      window.scrollBy(0, (-dy / (s.dims.R * s.dims.step)) * SLOT * window.innerHeight)
+      window.scrollBy(0, (-dy / (s.dims.R * s.dims.step)) * SLOT * stableVH())
     }
     const onUp = (e) => {
       if (!s.dragging) return
@@ -354,7 +357,7 @@ export default function ArcCarousel() {
       const r = tileRef.current?.getBoundingClientRect()
       if (!r) return
       aimX.set(Math.max(-1, Math.min(1, (e.clientX - (r.left + r.width / 2)) / (window.innerWidth / 2))))
-      aimY.set(Math.max(-1, Math.min(1, (e.clientY - (r.top + r.height / 2)) / (window.innerHeight / 2))))
+      aimY.set(Math.max(-1, Math.min(1, (e.clientY - (r.top + r.height / 2)) / (stableVH() / 2))))
     }
     window.addEventListener('pointermove', move)
     return () => { window.removeEventListener('pointermove', move); aimX.set(0); aimY.set(0) }

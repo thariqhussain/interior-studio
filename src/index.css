@@ -147,6 +147,8 @@
 .parallax__title--lockup { position: relative; display: inline-block; padding: 0; font-size: clamp(2rem, 10.8vw, 12rem); transform: translateY(-16svh); }
 /* phones: a bigger title (the desktop size is tuned for a wide screen) */
 @media (max-width: 767px) { .parallax__title--lockup { font-size: 19vw; transform: translateY(-14svh); } }
+/* tablets: bigger than desktop's 10.8vw, smaller than a phone's 19vw */
+@media (min-width: 768px) and (max-width: 1099px) { .parallax__title--lockup { font-size: 15vw; transform: translateY(-14svh); } }
 .parallax__script { position: absolute; right: 2%; bottom: -.24em; font-size: .92em; text-transform: none; transform: rotate(-4deg); filter: drop-shadow(0 .03em .05em rgba(0, 0, 0, .55)); }
 .parallax__fade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(0,0,0,.25), transparent 30%), linear-gradient(to top, #0e0d0b, rgba(14,13,11,0) 42%); }
 .parallax__hint {
@@ -242,4 +244,15 @@
   .sg-nav .menu-content-wrapper { align-items: flex-start; }
   .sg-nav .nav-link-text { font-size: clamp(1.8rem, 9vw, 2.4rem); }
   .sg-nav .nav-link { padding: .1em 0; }
+}
+
+
+/* ───────── phone / tablet scroll performance ───────── */
+body { overscroll-behavior-y: none; } /* no rubber-band / pull-to-refresh bounce on the pinned sections */
+@media (max-width: 1099px), (pointer: coarse) {
+  /* backdrop blur re-blurs everything behind it on every frame while scrolling – the biggest GPU cost on phones. The glass
+     surfaces keep their translucent fill, they just stop blurring. */
+  *, *::before, *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  .sg-nav .nav-close-btn { background: rgba(19,19,19,.78); }
+  .hv-prev { background: rgba(40,40,42,.85); }
 }

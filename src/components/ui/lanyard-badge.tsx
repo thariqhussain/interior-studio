@@ -701,7 +701,7 @@ export default function LanyardBadge({
         }}
         aria-pressed={showBack}
         className="absolute left-0 top-0 outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
-        style={{ width: cw, height: ch + ringR + clipH, transformOrigin: "50% 0", cursor: "grab", touchAction: "none", willChange: "transform", pointerEvents: "auto" }}
+        style={{ width: cw, height: ch + ringR + clipH, transformOrigin: "50% 0", cursor: "grab", touchAction: "pan-y", willChange: "transform", pointerEvents: "auto" }}
       >
         {/* badge clip: hooks the ring, bites the card */}
         <div

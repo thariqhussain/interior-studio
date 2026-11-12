@@ -1,12 +1,12 @@
 import { Suspense, lazy, useEffect, useState } from 'react'
-import ConstructionPage from './components/ConstructionPage.jsx'
 
 /* Three layouts, each loaded lazily so a device never downloads the others:
    • desktop → Site.jsx (the whole site)
    • phone   → MobileSite.jsx (only the Preloader and the Hero; everything else is one "under construction" block)
-   • tablet  → the full-screen construction page (unchanged for now) */
+   • tablet  → TabletSite.jsx (only the Preloader and the Hero so far; the rest is one "under construction" block) */
 const Site = lazy(() => import('./Site.jsx'))
 const MobileSite = lazy(() => import('./MobileSite.jsx'))
+const TabletSite = lazy(() => import('./TabletSite.jsx'))
 
 // Set to false to open the site on every device again.
 const DESKTOP_ONLY = true
@@ -19,6 +19,7 @@ const PHONE = '(max-width: 767px)'
 if (typeof window !== 'undefined' && DESKTOP_ONLY) {
   if (!window.matchMedia(SMALL_SCREEN).matches) import('./Site.jsx')
   else if (window.matchMedia(PHONE).matches) import('./MobileSite.jsx')
+  else import('./TabletSite.jsx')
 }
 
 function useMedia(query) {
@@ -36,10 +37,9 @@ function useMedia(query) {
 export default function App() {
   const small = useMedia(SMALL_SCREEN)
   const phone = useMedia(PHONE)
-  if (DESKTOP_ONLY && small && !phone) return <ConstructionPage /> // tablet
   return (
     <Suspense fallback={null}>
-      {DESKTOP_ONLY && small ? <MobileSite /> : <Site />}
+      {DESKTOP_ONLY && small ? (phone ? <MobileSite /> : <TabletSite />) : <Site />}
     </Suspense>
   )
 }

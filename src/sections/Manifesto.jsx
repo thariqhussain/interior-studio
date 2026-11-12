@@ -215,7 +215,7 @@ export default function Manifesto() {
             borderColor: 'rgba(255,210,160,.38)',
             boxShadow: 'inset 0 1px 0 rgba(255,225,190,.35)',
           }}
-          className="absolute hidden rounded-[1.1cqw] border p-[1.05cqw] text-white sm:block"
+          className="absolute hidden rounded-[1.1cqw] border p-[1.05cqw] text-white lg:block"
         >
           <div className="flex items-start justify-between gap-[.8cqw]">
             <p className="font-normal" style={{ fontSize: 'clamp(.7rem, 1.02cqw, 1.2rem)', lineHeight: 1.2 }}>

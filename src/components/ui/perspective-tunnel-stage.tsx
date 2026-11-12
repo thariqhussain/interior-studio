@@ -1,5 +1,6 @@
 "use client";
 
+import { stableVH } from "@/lib/vh";
 import {
     motion,
     useTransform,
@@ -208,14 +209,21 @@ export default function PerspectiveTunnelStage({
         const updateDimensions = () => {
             setStage({
                 width: window.innerWidth,
-                height: window.innerHeight,
+                height: stableVH(),
                 isMobile: window.innerWidth < 768,
             });
         };
 
+        // only when the WIDTH changes: on phones the address bar changes the height on every scroll, which re-rendered the stage constantly
+        let lastW = window.innerWidth;
+        const onResize = () => {
+            if (window.innerWidth === lastW) return;
+            lastW = window.innerWidth;
+            updateDimensions();
+        };
         updateDimensions();
-        window.addEventListener("resize", updateDimensions);
-        return () => window.removeEventListener("resize", updateDimensions);
+        window.addEventListener("resize", onResize);
+        return () => window.removeEventListener("resize", onResize);
     }, []);
 
     const smoothProgress = useSpring(progress, {
@@ -316,7 +324,7 @@ function CurvedStat({ stat, progress, edge, edgeStop }: { stat: TunnelStat; prog
     const rotate = useTransform(lift, (l) => {
         // tilt to the slope of the dome at this x, easing in as the dome takes hold
         const uu = u.current;
-        const slope = ((DOME_DEPTH_SVH / 100) * window.innerHeight * (uu / Math.sqrt(1 - uu * uu))) / (window.innerWidth / 2);
+        const slope = ((DOME_DEPTH_SVH / 100) * stableVH() * (uu / Math.sqrt(1 - uu * uu))) / (window.innerWidth / 2);
         return (Math.atan(slope) * 180 / Math.PI) * Math.min(1, l / 6);
     });
 

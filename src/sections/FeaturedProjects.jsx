@@ -4,6 +4,7 @@ import { Star } from 'lucide-react'
 import { DISPLAY_FONT, SERIF_FONT } from '@/lib/projects'
 import ArcCarousel from '@/components/ArcCarousel'
 import { DOME_DEPTH_SVH } from '@/lib/dome'
+import { stableVH } from '@/lib/vh'
 
 /* =====================================================================
    Featured Projects – "Award Winning Work"
@@ -221,7 +222,7 @@ function Stage({ entered, rise, settle, height }) {
             </motion.div>
           </div>
 
-          <motion.div ref={starRef} style={{ scale: starScale, y: starY, transformOrigin: '100% 0%' }} className="hidden shrink-0 sm:block">
+          <motion.div ref={starRef} style={{ scale: starScale, y: starY, transformOrigin: '100% 0%' }} className="hidden shrink-0 lg:block">
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={entered ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.8 }}
@@ -276,7 +277,7 @@ export default function FeaturedProjects() {
     if (!listBox.current.ok) measureList()
     const { top, height } = listBox.current
     if (!height) return
-    const arrived = top - (ZONE_SVH / 100) * window.innerHeight // page scroll at which the list's top reached the heading zone
+    const arrived = top - (ZONE_SVH / 100) * stableVH() // page scroll at which the list's top reached the heading zone
     const want = y > arrived + SETTLE_START * height ? 1 : 0
     if (want === wantSettle.current) return
     wantSettle.current = want

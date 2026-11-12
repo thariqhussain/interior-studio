@@ -86,14 +86,14 @@ const CSS = `
 /* phones: the heading scales with the screen width, so the longest room name always fits */
 /* phones: heading + description at the top, the whole video (16:9, nothing cropped) centred below, buttons at the bottom */
 .hv-p-top { display: none; }
-@media (max-width: 767px) {
-  .hv-h { font-size: 9.2vw; }
+@media (max-width: 1099px) {
+  .hv-h { font-size: min(9.2vw, 4.4rem); }
   .hv-clip { grid-template-rows: auto auto auto; align-content: center; }
-  .hv-top { align-items: flex-end; padding: 0 22px 14px; }
-  .hv-top .hv-slot { height: calc(9.2vw + 5.2rem) !important; }
+  .hv-top { align-items: flex-end; padding: 0 clamp(22px, 4vw, 48px) 14px; }
+  .hv-top .hv-slot { height: calc(min(9.2vw, 4.4rem) + 5.2rem) !important; }
   .hv-top .hv-slot > .hv-text { top: auto; bottom: 0; }
-  .hv-p-top { display: block; margin: 12px auto 0; max-width: 30em; color: rgba(255,255,255,.72); font-size: .95rem; line-height: 1.5; white-space: normal; }
-  .hv-band { aspect-ratio: 16 / 9; }
+  .hv-p-top { display: block; margin: 12px auto 0; max-width: 34em; color: rgba(255,255,255,.72); font-size: .95rem; line-height: 1.5; white-space: normal; }
+  .hv-band { aspect-ratio: 16 / 9; width: min(100%, calc((100svh - 17rem) * 16 / 9)); justify-self: center; }
   .hv-desc { display: none; }
   .hv-bottom { padding: 18px 0 0; }
   .hv-p-top { font-size: clamp(.82rem, 3.7vw, .95rem); }
